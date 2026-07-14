@@ -43,7 +43,6 @@ VITE_API_BASE_URL=http://localhost/projects/mh-mini-mart/backend/api
 
 Copy `frontend/.env.example` to `frontend/.env` and choose the URL matching your Apache setup.
 
-
 Generate the optimized PHP class autoloader after backend class changes:
 
 ```bash
@@ -89,6 +88,7 @@ Database and internal PHP errors are logged server-side and are not exposed to c
 ## POS held sales
 
 Held POS carts are stored in the `held_sales` and `held_sale_items` database tables. Apply `database/migrations/007_create_held_sales.sql` to an existing database before using this workflow. Holding does not create a sale, payment, stock reduction, or stock transaction. Products, prices, and stock are revalidated when a cart is resumed and again inside the final sale transaction.
+
 ## Expenses module
 
 Existing installations must apply `database/migrations/008_create_expenses_module.sql` once. It preserves legacy expense rows, assigns them to **Other expenses**, and converts legacy recorded/cancelled statuses to active/voided. New installations already receive the final tables from `database/schema.sql`.
@@ -115,6 +115,7 @@ Reporting rules:
 - Wastage cost impact is labelled estimated because stock transactions do not store a historical cost snapshot.
 
 Reports print through the browser using the current filtered result and export CSV with UTF-8-compatible output. No additional chart or UI dependency is required.
+
 ## Users and permissions
 
 Apply `database/migrations/009_create_users_permissions.sql` to upgrade the existing `access_credentials` records without breaking historical sales, expenses, refunds, held sales, or stock transactions. The migration adds user display names, last-login tracking, session versions, roles, permissions, role permissions, user allow/deny overrides, and activity logs.
@@ -133,6 +134,7 @@ User administration routes:
 - `GET|PUT /roles/{id}/permissions`
 
 All routes require an active authenticated session and `users.manage`. Role and status changes plus password resets increment the user session version, so previous sessions are rejected on their next protected request. The Admin role permissions and final active administrator are protected from lockout. Permanent deletion is rejected when business or audit history exists; deactivation is the normal offboarding workflow.
+
 ## Settings module
 
 Import `database/migrations/010_create_settings.sql` after the earlier migrations. The migration creates an idempotent, typed settings store and seeds safe defaults.
@@ -143,6 +145,7 @@ Import `database/migrations/010_create_settings.sql` after the earlier migration
 - Browser printing is the working default. QZ Tray values can be stored but require a separate future integration.
 - Backup schedule and folder values are preferences for the Backups module; this page does not execute scheduled backups.
 - A valid saved PHP time zone is applied at the beginning of every API request. Changes therefore affect the update response and subsequent requests immediately.
+
 ## Backups module
 
 The Backups page creates checksummed JSON database archives in the configured safe relative folder. Backup files are denied direct Apache access and can only be listed or downloaded through authenticated API routes with backups.create. Restore additionally requires backups.restore, a matching schema fingerprint, a valid checksum, the exact RESTORE confirmation, and an automatic pre-restore safety backup.
@@ -154,6 +157,7 @@ The isolated critical-flow test can be run with:
     php backend/tests/integration_audit.php
 
 It creates and drops only the fixed mh_mini_mart_audit_test database and uses temporary backup storage.
+
 ## Purchases and suppliers
 
 Existing installations must apply `database/migrations/011_create_purchases_suppliers.sql` after migration 010. Fresh installations receive the same supplier, purchase, payment, return, permission, sequence, and stock-transaction structures through `database/schema.sql`.
