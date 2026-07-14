@@ -45,4 +45,7 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./frontend/dist/
           server-dir: /public_html/store/
+          exclude: |
+            api/**
+            api/**/**
           # Agar public_html k andar kisi specific folder mein karna ho tou /public_html/folder_name/ likhein
