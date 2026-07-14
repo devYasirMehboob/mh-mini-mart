@@ -126,7 +126,7 @@ final class DashboardRepository
     {
         [$filter, $parameters] = $this->cashierFilter($cashierId);
         $statement = $this->database->connection()->prepare(
-            "SELECT s.payment_method, COUNT(*) AS sales_count, COALESCE(SUM(s.grand_total), 0) AS total
+            "SELECT s.payment_method, COUNT(*) AS sales_count, COALESCE(SUM(s.subtotal - s.discount_amount), 0) AS total
              FROM sales s
              WHERE s.status = :status
                AND s.created_at >= DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01')
@@ -148,7 +148,7 @@ final class DashboardRepository
     {
         [$filter, $parameters] = $this->cashierFilter($cashierId);
         $statement = $this->database->connection()->prepare(
-            'SELECT ' . $groupExpression . ' AS period_key, COALESCE(SUM(s.grand_total), 0) AS total,
+            'SELECT ' . $groupExpression . ' AS period_key, COALESCE(SUM(s.subtotal - s.discount_amount), 0) AS total,
                     COUNT(*) AS sales_count FROM sales s
              WHERE s.status = :status AND ' . $dateCondition . $filter . '
              GROUP BY period_key ORDER BY period_key ASC'

@@ -9,4 +9,3 @@ return [
     'username' => 'root',
     'password' => '',
 ];
-

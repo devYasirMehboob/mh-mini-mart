@@ -2,7 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import AppLayout from "./layouts/AppLayout";
 import AccessDeniedPage from "./pages/AccessDeniedPage";
 import CategoriesPage from "./pages/CategoriesPage";
-import ComingSoonPage from "./pages/ComingSoonPage";
+import BackupsPage from "./pages/BackupsPage";
 import DashboardPage from "./pages/DashboardPage";
 import ExpensesPage from "./pages/ExpensesPage";
 import InventoryPage from "./pages/InventoryPage";
@@ -44,7 +44,7 @@ function App() {
         <Route path="expenses" element={permitted("expenses.view", <ExpensesPage />)} />
         <Route path="reports" element={permitted("reports.view", <ReportsPage />)} />
         <Route path="users" element={permitted("users.manage", <UsersPage />)} />
-        <Route path="backups" element={permitted("backups.create", <ComingSoonPage title="Backups" />)} />
+        <Route path="backups" element={permitted("backups.create", <BackupsPage />)} />
         <Route path="settings" element={permitted("settings.manage", <SettingsPage />)} />
         <Route path="access-denied" element={<AccessDeniedPage />} />
       </Route>

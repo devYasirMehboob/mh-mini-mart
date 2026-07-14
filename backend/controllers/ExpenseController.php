@@ -10,7 +10,7 @@ final class ExpenseController
  public function summary(): never{JsonResponse::success('Expense summary retrieved successfully.',$this->service->summary($this->request->query()));}
  public function show(int $id): never{JsonResponse::success('Expense retrieved successfully.',['expense'=>$this->service->get($id)]);}
  public function store(array $user): never{$this->session->verifyCsrfToken();JsonResponse::success('Expense added successfully.',['expense'=>$this->service->create($this->request->data(),$this->request->file('receipt'),(int)$user['id'])],201);}
- public function update(int $id): never{$this->session->verifyCsrfToken();JsonResponse::success('Expense updated successfully.',['expense'=>$this->service->update($id,$this->request->data(),$this->request->file('receipt'))]);}
+ public function update(int $id,array $user): never{$this->session->verifyCsrfToken();JsonResponse::success('Expense updated successfully.',['expense'=>$this->service->update($id,$this->request->data(),$this->request->file('receipt'),(int)$user['id'])]);}
  public function void(int $id,array $user): never{$this->session->verifyCsrfToken();JsonResponse::success('Expense voided successfully.',['expense'=>$this->service->void($id,(int)$user['id'])]);}
  public function export(): never{$file=$this->exporter->create($this->service->exportFilters($this->request->query()));header('Content-Type: text/csv; charset=utf-8');header('Content-Disposition: attachment; filename="'.$file['filename'].'"');echo$file['content'];exit;}
 }

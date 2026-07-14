@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Config\Database;
 use App\Controllers\AuthController;
+use App\Controllers\BackupController;
 use App\Controllers\CategoryController;
 use App\Controllers\DashboardController;
 use App\Controllers\ProductController;
@@ -52,6 +53,7 @@ use App\Repositories\PurchasePaymentRepository;
 use App\Repositories\PurchaseReturnRepository;
 use App\Security\SessionManager;
 use App\Services\AuthService;
+use App\Services\DatabaseBackupService;
 use App\Services\CategoryService;
 use App\Services\DashboardService;
 use App\Services\ProductImageService;
@@ -146,6 +148,11 @@ try {
         $activityRepository
     );
     $settingsController = new SettingsController($request, $settingsService, $session);
+    $backupController = new BackupController(
+        $request,
+        new DatabaseBackupService($database, $activityRepository, $configuration, __DIR__ . '/..'),
+        $session
+    );
     $authorizationService = new AuthorizationService($userRepository, $permissionRepository, $session, $configuration);
     $authMiddleware = new AuthMiddleware($session, $authorizationService);
     $authService = new AuthService($userRepository, $permissionRepository, $activityRepository, $session);
@@ -212,7 +219,10 @@ try {
     $productController = new ProductController(
         $request,
         new ProductService(
+            $database,
             new ProductRepository($database),
+            new StockTransactionRepository($database),
+            $activityRepository,
             new ProductValidator(),
             new ProductImageService(__DIR__ . '/../uploads/products')
         ),
@@ -250,7 +260,8 @@ $inventoryController = new InventoryController(
             new ProductRepository($database),
             new StockTransactionRepository($database),
             new SaleValidator(),
-            $configuration
+            $configuration,
+            $activityRepository
         ),
         $salesExportService,
         $session
@@ -260,7 +271,7 @@ $inventoryController = new InventoryController(
     $expenseCategoryRepository = new ExpenseCategoryRepository($database);
     $expenseController = new ExpenseController(
         $request,
-        new ExpenseService($expenseRepository, $expenseCategoryRepository, new ExpenseValidator(), new ExpenseReceiptService(__DIR__ . '/../uploads/expenses')),
+        new ExpenseService($expenseRepository, $expenseCategoryRepository, new ExpenseValidator(), new ExpenseReceiptService(__DIR__ . '/../uploads/expenses'), $activityRepository),
         new ExpenseExportService($expenseRepository),
         $session
     );
@@ -349,6 +360,24 @@ $inventoryController = new InventoryController(
         if ($method === 'GET') $roleController->showPermissions((int) $matches[1]);
         if ($method === 'PUT') $roleController->updatePermissions((int) $matches[1], $authenticatedUser);
     }
+    if (str_starts_with($path, '/backups')) {
+        if ($method === 'POST' && preg_match('#^/backups/([^/]+)/restore$#', $path, $matches) === 1) {
+            $authorizationService->requirePermission($authenticatedUser, 'backups.restore');
+            $backupController->restore(rawurldecode($matches[1]), $authenticatedUser);
+        }
+
+        $authorizationService->requirePermission($authenticatedUser, 'backups.create');
+        if ($method === 'GET' && $path === '/backups') {
+            $backupController->index();
+        }
+        if ($method === 'POST' && $path === '/backups') {
+            $backupController->store($authenticatedUser);
+        }
+        if ($method === 'GET' && preg_match('#^/backups/([^/]+)/download$#', $path, $matches) === 1) {
+            $backupController->download(rawurldecode($matches[1]));
+        }
+    }
+
     if (str_starts_with($path, '/suppliers')) {
         if ($method === 'GET') $authorizationService->requirePermission($authenticatedUser, 'suppliers.view');
         else $authorizationService->requirePermission($authenticatedUser, 'suppliers.manage');
@@ -438,34 +467,34 @@ if (str_starts_with($path, '/products')) {
         if (in_array($method, ['PUT','PATCH'], true)) $authorizationService->requirePermission($authenticatedUser, 'products.update');
         if ($method === 'DELETE') $authorizationService->requirePermission($authenticatedUser, 'products.delete');
         if ($method === 'GET' && $path === '/products') {
-            $productController->index();
+            $productController->index($authenticatedUser);
         }
 
 
         if ($method === 'POST' && $path === '/products') {
-            $productController->store();
+            $productController->store($authenticatedUser);
         }
 
         if (preg_match('#^/products/([1-9][0-9]*)$#', $path, $matches) === 1) {
             $productId = (int) $matches[1];
 
             if ($method === 'GET') {
-                $productController->show($productId);
+                $productController->show($productId, $authenticatedUser);
             }
 
             if ($method === 'PUT') {
-                $productController->update($productId);
+                $productController->update($productId, $authenticatedUser);
             }
 
             if ($method === 'DELETE') {
-                $productController->destroy($productId);
+                $productController->destroy($productId, $authenticatedUser);
             }
         }
 
         if ($method === 'PATCH'
             && preg_match('#^/products/([1-9][0-9]*)/status$#', $path, $matches) === 1
         ) {
-            $productController->updateStatus((int) $matches[1]);
+            $productController->updateStatus((int) $matches[1], $authenticatedUser);
         }
     }
 
@@ -527,7 +556,10 @@ if (str_starts_with($path, '/inventory')) {
         if (str_ends_with($path, '/refund')) $authorizationService->requirePermission($authenticatedUser, 'sales.refund');
         if ($method === 'GET' && $path === '/sales') $saleController->index($authenticatedUser);
         if ($method === 'GET' && $path === '/sales/summary') $saleController->summary($authenticatedUser);
-        if ($method === 'GET' && $path === '/sales/export') $saleController->export($authenticatedUser);
+        if ($method === 'GET' && $path === '/sales/export') {
+            $authorizationService->requirePermission($authenticatedUser, 'sales.view_all');
+            $saleController->export($authenticatedUser);
+        }
         if ($method === 'POST' && $path === '/sales') $saleController->store($authenticatedUser);
         if ($method === 'GET' && preg_match('#^/sales/([1-9][0-9]*)$#', $path, $matches) === 1) $saleController->show($authenticatedUser, (int) $matches[1]);
         if ($method === 'GET' && preg_match('#^/sales/([1-9][0-9]*)/receipt$#', $path, $matches) === 1) $saleController->receipt($authenticatedUser, (int) $matches[1]);
@@ -544,7 +576,7 @@ if (str_starts_with($path, '/inventory')) {
         if ($method === 'POST' && $path === '/expenses') $expenseController->store($authenticatedUser);
         if (preg_match('#^/expenses/([1-9][0-9]*)$#', $path, $matches) === 1) {
             if ($method === 'GET') $expenseController->show((int) $matches[1]);
-            if ($method === 'PUT') $expenseController->update((int) $matches[1]);
+            if ($method === 'PUT') $expenseController->update((int) $matches[1], $authenticatedUser);
             if ($method === 'DELETE') $expenseController->void((int) $matches[1], $authenticatedUser);
         }
     }

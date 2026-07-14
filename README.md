@@ -166,3 +166,8 @@ Import `database/migrations/010_create_settings.sql` after the earlier migration
 - Browser printing is the working default. QZ Tray values can be stored but require a separate future integration.
 - Backup schedule and folder values are preferences for the Backups module; this page does not execute scheduled backups.
 - A valid saved PHP time zone is applied at the beginning of every API request. Changes therefore affect the update response and subsequent requests immediately.
+## Purchases and suppliers
+
+Existing installations must apply `database/migrations/011_create_purchases_suppliers.sql` after migration 010. Fresh installations receive the same supplier, purchase, payment, return, permission, sequence, and stock-transaction structures through `database/schema.sql`.
+
+The module adds authenticated, permission-controlled supplier routes under `/suppliers`, purchase routes under `/purchases`, return routes under `/purchase-returns`, and seven purchase report endpoints under `/reports/purchases`. Purchase completion, cancellation, payments, and returns use PDO transactions. Tracked stock is posted once with linked stock history; drafts and untracked products do not create stock movements. The current product purchase cost uses the latest completed purchase unit cost, while historical purchase items preserve their original product and cost values. General expenses remain separate from inventory purchases and supplier payments.

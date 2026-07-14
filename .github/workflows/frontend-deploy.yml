@@ -1,0 +1,47 @@
+name: Deploy Frontend to Hostinger
+
+on:
+  push:
+    branches:
+      - main # Agar apki branch ka naam 'master' hai toh isko change kar lein
+    paths:
+      - 'frontend/**' # Ye action sirf tab chalega jab frontend k folder mein koi change hoga
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy React App
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: GitHub repository se code fetch karega
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Step 2: Node.js setup karega taake npm commands chal sakein
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Aap 18 bhi use kar sakte hain
+
+      # Step 3: Frontend folder mein ja kar packages install karega
+      - name: Install Dependencies
+        working-directory: ./frontend
+        run: npm install
+
+      # Step 4: React app ko build karega
+      - name: Build Project
+        working-directory: ./frontend
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+
+      # Step 5: Build (dist) folder ko Hostinger par upload karega FTP k zariye
+      - name: Deploy to Hostinger via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./frontend/dist/
+          server-dir: /public_html/
+          # Agar public_html k andar kisi specific folder mein karna ho tou /public_html/folder_name/ likhein

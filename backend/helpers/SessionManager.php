@@ -14,6 +14,8 @@ final class SessionManager
             return;
         }
 
+        ini_set('session.use_strict_mode', '1');
+        ini_set('session.use_only_cookies', '1');
         session_name('mh_mini_mart_session');
         session_set_cookie_params([
             'lifetime' => 0,

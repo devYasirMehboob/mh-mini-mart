@@ -7,3 +7,12 @@ vendor/
 backend/uploads/products/*
 !backend/uploads/products/.gitkeep
 !backend/uploads/products/.htaccess
+backend/uploads/expenses/*
+!backend/uploads/expenses/.gitkeep
+!backend/uploads/expenses/.htaccess
+backend/uploads/settings/*
+!backend/uploads/settings/.gitkeep
+!backend/uploads/settings/.htaccess
+backend/backups/*
+!backend/backups/.gitkeep
+!backend/backups/.htaccess

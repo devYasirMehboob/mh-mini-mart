@@ -187,6 +187,16 @@ final class ProductRepository
         return (int) $statement->fetchColumn() > 0;
     }
 
+    public function isLinkedToPurchases(int $id): bool
+    {
+        $statement = $this->database->connection()->prepare(
+            'SELECT COUNT(*) FROM purchase_items WHERE product_id = :product_id'
+        );
+        $statement->execute(['product_id' => $id]);
+
+        return (int) $statement->fetchColumn() > 0;
+    }
+
     public function isLinkedToStockTransactions(int $id): bool
     {
         $statement = $this->database->connection()->prepare(

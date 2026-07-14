@@ -133,14 +133,14 @@ final class InventoryService
                 throw new HttpException('Only active products can receive manual stock changes.', 409);
             }
 
-            $previous = (float) $product['quantity'];
-            $quantity = (float) $data['quantity'];
+            $previous = $this->toMilli((string) $product['quantity']);
+            $quantity = $this->toMilli((string) $data['quantity']);
 
             if ($transactionType === 'adjustment') {
                 $newStock = $quantity;
                 $movement = abs($newStock - $previous);
 
-                if ($movement < 0.0005) {
+                if ($movement === 0) {
                     throw new HttpException('The adjusted quantity is already the current stock.', 422);
                 }
             } elseif (in_array($transactionType, ['addition', 'opening'], true)) {
@@ -153,21 +153,21 @@ final class InventoryService
 
             if ($newStock < 0) {
                 throw new HttpException(
-                    'Only ' . rtrim(rtrim(number_format($previous, 3, '.', ''), '0'), '.')
+                    'Only ' . rtrim(rtrim($this->quantity($previous), '0'), '.')
                     . ' ' . $product['unit_type'] . ' of ' . $product['name'] . ' are available.',
                     409,
                     ['quantity' => ['Stock cannot become negative.']]
                 );
             }
 
-            $newStockFormatted = number_format($newStock, 3, '.', '');
+            $newStockFormatted = $this->quantity($newStock);
             $this->inventory->updateQuantity($data['product_id'], $newStockFormatted);
             $transaction = $this->transactions->create([
                 'product_id' => $data['product_id'],
                 'user_id' => $userId,
                 'transaction_type' => $transactionType,
-                'quantity' => number_format($movement, 3, '.', ''),
-                'previous_stock' => number_format($previous, 3, '.', ''),
+                'quantity' => $this->quantity($movement),
+                'previous_stock' => $this->quantity($previous),
                 'new_stock' => $newStockFormatted,
                 'reason' => $data['reason'],
                 'reference_type' => null,
@@ -198,5 +198,17 @@ final class InventoryService
         $parsed = \DateTimeImmutable::createFromFormat('Y-m-d', $date);
 
         return $parsed !== false && $parsed->format('Y-m-d') === $date;
+    }
+
+    private function toMilli(string $value): int
+    {
+        [$whole, $fraction] = array_pad(explode('.', $value, 2), 2, '');
+
+        return (int) $whole * 1000 + (int) str_pad(substr($fraction, 0, 3), 3, '0');
+    }
+
+    private function quantity(int $milli): string
+    {
+        return intdiv($milli, 1000) . '.' . str_pad((string) ($milli % 1000), 3, '0', STR_PAD_LEFT);
     }
 }

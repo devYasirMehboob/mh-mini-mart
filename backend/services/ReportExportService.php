@@ -6,10 +6,12 @@ use App\Http\HttpException;
 final class ReportExportService
 {
     private const TYPES=['sales','daily_sales','weekly_sales','monthly_sales','products','categories','cashiers','payment_methods','expenses','profit','stock','low_stock','out_of_stock','wastage','best_selling_products','purchase_summary','supplier_purchases','product_purchases','monthly_purchases','supplier_balances','purchase_payments','purchase_returns'];
+    private const PURCHASE_TYPES=['purchase_summary','supplier_purchases','product_purchases','monthly_purchases','supplier_balances','purchase_payments','purchase_returns'];
     public function __construct(private readonly ReportService $reports){}
     public function create(string $type,array $query,array $user): array
     {
         if(!in_array($type,self::TYPES,true))throw new HttpException('This report cannot be exported.',422,['report_type'=>['Select a supported export type.']]);
+        if(in_array($type,self::PURCHASE_TYPES,true)&&!in_array('purchases.export',$user['permissions']??[],true))throw new HttpException('You do not have permission to export purchase reports.',403);
         $query['page']=1;$query['limit']=100;$first=$this->reports->report($type,$query,$user);$rows=$first['rows']??[];$pages=min(50,(int)($first['pagination']['total_pages']??1));
         for($page=2;$page<=$pages;$page++){$query['page']=$page;$next=$this->reports->report($type,$query,$user);array_push($rows,...($next['rows']??[]));}
         $stream=fopen('php://temp','w+');if($stream===false)throw new \RuntimeException('Unable to prepare report export.');fwrite($stream,"\xEF\xBB\xBF");
@@ -43,7 +45,7 @@ final class ReportExportService
             'monthly_purchases'=>['period','purchase_count','total_purchases','amount_paid','balance_due'],
             'supplier_balances'=>['supplier_name','phone','email','status','opening_balance','current_balance','purchase_count'],
             'purchase_payments'=>['payment_date','purchase_number','supplier_name','amount','payment_method','reference_number','notes'],
-            'purchase_returns'=>['return_number','return_date','purchase_number','supplier_name','return_value','refund_amount','refund_method','reason'],
+            'purchase_returns'=>['return_number','return_date','purchase_number','supplier_name','return_value','refund_amount','reason'],
         ];
         $allowed=$columns[$type]??[];if($rows===[])return$allowed;return array_values(array_filter($allowed,fn($key)=>array_key_exists($key,$rows[0])));
     }

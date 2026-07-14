@@ -11,6 +11,17 @@ final class SaleItemRepository
     {
         $columns='id,product_id,product_name,product_code,quantity,unit_price,discount_amount,line_total';
         if($includePurchaseCost)$columns.=',purchase_cost';
-        $s=$this->database->connection()->prepare('SELECT '.$columns.' FROM sale_items WHERE sale_id=:sale_id ORDER BY id');$s->execute(['sale_id'=>$saleId]);return$s->fetchAll();
+        $s=$this->database->connection()->prepare(
+            'SELECT '.$columns.',
+                    EXISTS(
+                        SELECT 1 FROM stock_transactions st
+                        WHERE st.reference_type = \'sale\'
+                          AND st.reference_id = si.sale_id
+                          AND st.product_id = si.product_id
+                    ) AS stock_was_posted
+             FROM sale_items si
+             WHERE si.sale_id=:sale_id
+             ORDER BY si.id'
+        );$s->execute(['sale_id'=>$saleId]);return$s->fetchAll();
     }
 }

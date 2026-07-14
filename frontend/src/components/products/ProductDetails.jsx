@@ -8,7 +8,7 @@ function Detail({ label, value }) {
   return <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</dt><dd className="mt-1 text-sm font-semibold text-slate-700">{value || "â€”"}</dd></div>;
 }
 
-function ProductDetails({ product, onClose }) {
+function ProductDetails({ product, canViewCosts, onClose }) {
   return (
     <>
       <div className="space-y-6 px-6 py-5">
@@ -24,7 +24,7 @@ function ProductDetails({ product, onClose }) {
           <Detail label="Product code" value={product.product_code} />
           <Detail label="Barcode" value={product.barcode} />
           <Detail label="Unit" value={product.unit_type} />
-          <Detail label="Purchase cost" value={formatCurrency(Number(product.purchase_cost))} />
+          {canViewCosts && <Detail label="Purchase cost" value={formatCurrency(Number(product.purchase_cost))} />}
           <Detail label="Selling price" value={formatCurrency(Number(product.selling_price))} />
           <Detail label="Quantity" value={Number(product.track_stock) !== 0 ? Number(product.quantity).toLocaleString() : "Not tracked"} />
           <Detail label="Minimum stock" value={Number(product.track_stock) !== 0 ? Number(product.minimum_stock).toLocaleString() : "Not tracked"} />

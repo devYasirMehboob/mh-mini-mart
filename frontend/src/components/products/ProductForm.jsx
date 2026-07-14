@@ -1,4 +1,4 @@
-﻿const unitTypes = [
+const unitTypes = [
   ["piece", "Piece"],
   ["pack", "Pack"],
   ["kilogram", "Kilogram"],
@@ -24,6 +24,8 @@ function inputClasses(error) {
 function ProductForm({
   values,
   errors,
+  canViewCosts,
+  isEdit,
   categories,
   imagePreview,
   isSubmitting,
@@ -84,11 +86,11 @@ function ProductForm({
         <section className="border-t border-slate-100 pt-5">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Pricing and stock</h3>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
+            {canViewCosts && <div>
               <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="purchase-cost">Purchase cost</label>
               <input className={inputClasses(errors.purchase_cost)} id="purchase-cost" name="purchase_cost" type="number" min="0" step="0.01" value={values.purchase_cost} onChange={onChange} disabled={isSubmitting} />
               <FieldError message={errors.purchase_cost} />
-            </div>
+            </div>}
             <div>
               <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="selling-price">Selling price</label>
               <input className={inputClasses(errors.selling_price)} id="selling-price" name="selling_price" type="number" min="0.01" step="0.01" value={values.selling_price} onChange={onChange} disabled={isSubmitting} />
@@ -96,7 +98,8 @@ function ProductForm({
             </div>
             <div>
               <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="product-quantity">Quantity</label>
-              <input className={inputClasses(errors.quantity)} id="product-quantity" name="quantity" type="number" min="0" step="0.001" value={values.quantity} onChange={onChange} disabled={isSubmitting || !values.track_stock} />
+              <input className={inputClasses(errors.quantity)} id="product-quantity" name="quantity" type="number" min="0" step="0.001" value={values.quantity} onChange={onChange} disabled={isSubmitting || !values.track_stock || isEdit} />
+              {isEdit && <p className="mt-1.5 text-xs text-slate-400">Use Inventory to record quantity changes.</p>}
               <FieldError message={errors.quantity} />
             </div>
             <div>

@@ -195,7 +195,7 @@ final class PurchaseReportRepository
         $base = ' FROM purchase_returns r JOIN purchases p ON p.id=r.purchase_id JOIN suppliers s ON s.id=r.supplier_id' . $where;
         $total = (int) $this->scalar('SELECT COUNT(*)' . $base, $params);
         $rows = $this->paged(
-            'SELECT r.id,r.return_number,r.return_date,p.purchase_number,s.name supplier_name,r.subtotal return_value,r.refund_amount,r.refund_method,r.reason' . $base .
+            'SELECT r.id,r.return_number,r.return_date,p.purchase_number,s.name supplier_name,r.subtotal return_value,r.refund_amount,r.reason' . $base .
             ' ORDER BY r.return_date DESC,r.id DESC LIMIT :limit OFFSET :offset',
             $params,
             $filters

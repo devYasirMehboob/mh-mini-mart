@@ -51,7 +51,7 @@ final class ReportValidator
         if ($expenseStatus !== '' && !in_array($expenseStatus, self::EXPENSE_STATUSES, true)) $errors['expense_status'] = ['Select a valid expense status.'];
         if ($stockStatus !== '' && !in_array($stockStatus, self::STOCK_STATUSES, true)) $errors['stock_status'] = ['Select a valid stock status.'];
         if ($transaction !== '' && !in_array($transaction, self::TRANSACTIONS, true)) $errors['transaction_type'] = ['Select a valid transaction type.'];
-        if ($tracking !== '' && !in_array($tracking, ['enabled', 'disabled'], true)) $errors['tracking'] = ['Select a valid tracking option.'];
+        if ($tracking !== '' && !in_array($tracking, ['tracked', 'untracked'], true)) $errors['tracking'] = ['Select a valid tracking option.'];
         if (!in_array($groupBy, ['day','week','month'], true)) $errors['group_by'] = ['Group by must be day, week, or month.'];
         if (!in_array($sortBy, self::SORTS, true)) $errors['sort_by'] = ['Select a valid sort field.'];
         if (!in_array($direction, ['asc','desc'], true)) $errors['sort_direction'] = ['Select a valid sort direction.'];

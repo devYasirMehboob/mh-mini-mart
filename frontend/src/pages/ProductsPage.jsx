@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getCategories } from "../api/categoriesApi";
 import {
   createProduct,
@@ -18,6 +18,7 @@ import Modal from "../components/Modal";
 import ProductDetails from "../components/products/ProductDetails";
 import ProductForm from "../components/products/ProductForm";
 import ProductTable from "../components/products/ProductTable";
+import usePermissions from "../hooks/usePermissions";
 
 const emptyForm = {
   category_id: "",
@@ -57,6 +58,11 @@ function validationErrors(error) {
 }
 
 function ProductsPage() {
+  const { can } = usePermissions();
+  const canCreate = can("products.create");
+  const canUpdate = can("products.update");
+  const canDelete = can("products.delete");
+  const canViewCosts = can("products.costs.view");
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [filters, setFilters] = useState(defaultFilters);
@@ -126,7 +132,7 @@ function ProductsPage() {
         name: latest.name,
         product_code: latest.product_code,
         barcode: latest.barcode || "",
-        purchase_cost: latest.purchase_cost,
+        purchase_cost: latest.purchase_cost ?? "0.00",
         selling_price: latest.selling_price,
         quantity: latest.quantity,
         minimum_stock: latest.minimum_stock,
@@ -297,9 +303,9 @@ function ProductsPage() {
           <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-[28px]">Products</h2>
           <p className="mt-2 text-sm text-slate-500">Manage product details, pricing, stock, and availability.</p>
         </div>
-        <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700" type="button" onClick={openCreateForm}>
+        {canCreate && <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700" type="button" onClick={openCreateForm}>
           <Icon name="plus" className="size-[18px]" /> Add product
-        </button>
+        </button>}
       </section>
 
       <AlertMessage type={alert?.type} message={alert?.message} onDismiss={() => setAlert(null)} />
@@ -325,7 +331,7 @@ function ProductsPage() {
           <div><h3 className="text-base font-bold text-slate-900">Product list</h3><p className="mt-1 text-xs text-slate-500">{isLoading ? "Loading products..." : pagination.total + " product" + (pagination.total === 1 ? "" : "s")}</p></div>
         </div>
 
-        {isLoading ? <LoadingState label="Loading products..." /> : products.length === 0 ? <EmptyState icon={hasFilters ? "search" : "products"} title={hasFilters ? "No matching products" : "No products yet"} description={hasFilters ? "Try adjusting the filters." : "Add your first product to begin building the catalogue."} actionLabel={hasFilters ? null : "Add first product"} onAction={openCreateForm} /> : <ProductTable products={products} actionId={actionId} onView={openDetails} onEdit={openEditForm} onStatus={handleStatus} onDelete={setDeleteTarget} />}
+        {isLoading ? <LoadingState label="Loading products..." /> : products.length === 0 ? <EmptyState icon={hasFilters ? "search" : "products"} title={hasFilters ? "No matching products" : "No products yet"} description={hasFilters ? "Try adjusting the filters." : "Add your first product to begin building the catalogue."} actionLabel={hasFilters || !canCreate ? null : "Add first product"} onAction={canCreate ? openCreateForm : undefined} /> : <ProductTable products={products} actionId={actionId} canUpdate={canUpdate} canDelete={canDelete} onView={openDetails} onEdit={openEditForm} onStatus={handleStatus} onDelete={setDeleteTarget} />}
 
         {!isLoading && pagination.total_pages > 1 && (
           <div className="flex items-center justify-between border-t border-slate-100 px-6 py-4">
@@ -336,11 +342,11 @@ function ProductsPage() {
       </section>
 
       <Modal isOpen={formMode !== null} title={formMode === "edit" ? "Edit product" : "Add product"} description={formMode === "edit" ? "Update product details, pricing, and stock." : "Add a new product to the shop catalogue."} onClose={closeForm} size="lg">
-        <ProductForm values={formValues} errors={formErrors} categories={categories} imagePreview={imagePreview} isSubmitting={isSubmitting} submitLabel={formMode === "edit" ? "Save changes" : "Add product"} onChange={handleFormChange} onImageChange={handleImageChange} onRemoveImage={removeImage} onSubmit={handleSubmit} onCancel={closeForm} />
+        <ProductForm values={formValues} errors={formErrors} canViewCosts={canViewCosts} isEdit={formMode === "edit"} categories={categories} imagePreview={imagePreview} isSubmitting={isSubmitting} submitLabel={formMode === "edit" ? "Save changes" : "Add product"} onChange={handleFormChange} onImageChange={handleImageChange} onRemoveImage={removeImage} onSubmit={handleSubmit} onCancel={closeForm} />
       </Modal>
 
       <Modal isOpen={detailsProduct !== null} title="Product details" description="Complete product information." onClose={() => setDetailsProduct(null)} size="lg">
-        {detailsProduct && <ProductDetails product={detailsProduct} onClose={() => setDetailsProduct(null)} />}
+        {detailsProduct && <ProductDetails product={detailsProduct} canViewCosts={canViewCosts} onClose={() => setDetailsProduct(null)} />}
       </Modal>
 
       <ConfirmDialog isOpen={deleteTarget !== null} title="Delete product?" message={deleteTarget ? 'Delete "' + deleteTarget.name + '"? Products with sale history cannot be deleted.' : ""} isConfirming={isSubmitting} onCancel={() => setDeleteTarget(null)} onConfirm={handleDelete} />
