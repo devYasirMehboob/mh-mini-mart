@@ -1,3 +1,17 @@
+<IfModule mod_headers.c>
+    SetEnvIfNoCase Origin "^(https?://(store\.mhminimart\.com|localhost:5173))$" CORS_ALLOWED_ORIGIN=$1
+    Header onsuccess unset Access-Control-Allow-Origin
+    Header onsuccess unset Access-Control-Allow-Credentials
+    Header onsuccess unset Access-Control-Allow-Headers
+    Header onsuccess unset Access-Control-Allow-Methods
+    Header onsuccess unset Vary
+    Header always set Access-Control-Allow-Origin "%{CORS_ALLOWED_ORIGIN}e" env=CORS_ALLOWED_ORIGIN
+    Header always set Access-Control-Allow-Credentials "true" env=CORS_ALLOWED_ORIGIN
+    Header always set Access-Control-Allow-Headers "Content-Type, Accept, X-CSRF-Token, X-HTTP-Method-Override" env=CORS_ALLOWED_ORIGIN
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS" env=CORS_ALLOWED_ORIGIN
+    Header always set Vary "Origin" env=CORS_ALLOWED_ORIGIN
+</IfModule>
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteCond %{REQUEST_FILENAME} !-f

@@ -14,10 +14,10 @@ import {
 const AuthContext = createContext(null);
 function getSafeErrorMessage(error, fallback) {
   if (!error.response) {
-    console.log("ERROR_RESPONSE::", error);
-    return "The server could not be reached. Check that the local API is running.";
+    if (import.meta.env.DEV) console.warn("API_NETWORK_ERROR", error);
+    return "The server could not be reached. Please check the API server or hosting security settings.";
   }
-  console.log("ERROR_RESPONSE_ELSE::", error.response);
+  if (import.meta.env.DEV) console.warn("API_ERROR_RESPONSE", error.response);
   return error.response.data?.message || fallback;
 }
 export function AuthProvider({ children }) {
