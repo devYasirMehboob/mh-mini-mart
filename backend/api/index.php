@@ -499,7 +499,11 @@ if (str_starts_with($path, '/products')) {
     }
 
 if (str_starts_with($path, '/inventory')) {
-        $authorizationService->requirePermission($authenticatedUser, 'inventory.view');
+        if ($method === 'GET') {
+            $authorizationService->requirePermission($authenticatedUser, 'inventory.view');
+        } elseif ($method === 'POST') {
+            $authorizationService->requirePermission($authenticatedUser, 'inventory.adjust');
+        }
 
         if ($method === 'GET' && $path === '/inventory') {
             $inventoryController->index();

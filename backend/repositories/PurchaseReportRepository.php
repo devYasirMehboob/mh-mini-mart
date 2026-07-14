@@ -240,7 +240,7 @@ final class PurchaseReportRepository
                 'page' => $filters['page'],
                 'limit' => $filters['limit'],
                 'total' => $total,
-                'total_pages' => max(1, (int) ceil($total / $filters['limit'])),
+                'total_pages' => $total===0?0:(int)ceil($total/$filters['limit']),
             ],
             'filters' => $filters,
         ];

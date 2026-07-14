@@ -5,7 +5,7 @@ import StockBadge from "./StockBadge";
 import {formatCurrency} from "../../utils/calculateSaleTotals";
 
 function Detail({ label, value }) {
-  return <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</dt><dd className="mt-1 text-sm font-semibold text-slate-700">{value || "â€”"}</dd></div>;
+  return <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</dt><dd className="mt-1 text-sm font-semibold text-slate-700">{value || "—"}</dd></div>;
 }
 
 function ProductDetails({ product, canViewCosts, onClose }) {

@@ -23,7 +23,7 @@ final class UserRepository
         $direction=$filters['sort_direction']==='asc'?'ASC':'DESC';$offset=($filters['page']-1)*$filters['limit'];
         $sql="SELECT u.id,u.name,u.role,IF(u.is_active=1,'active','inactive') status,u.last_login_at,u.created_at,u.updated_at FROM access_credentials u$clause ORDER BY $sort $direction,u.id $direction LIMIT :limit OFFSET :offset";
         $statement=$this->database->connection()->prepare($sql);foreach($params as$key=>$value)$statement->bindValue(':'.$key,$value);$statement->bindValue(':limit',$filters['limit'],PDO::PARAM_INT);$statement->bindValue(':offset',$offset,PDO::PARAM_INT);$statement->execute();
-        return ['users'=>$statement->fetchAll(),'pagination'=>['page'=>$filters['page'],'limit'=>$filters['limit'],'total'=>$total,'total_pages'=>max(1,(int)ceil($total/$filters['limit']))]];
+        return ['users'=>$statement->fetchAll(),'pagination'=>['page'=>$filters['page'],'limit'=>$filters['limit'],'total'=>$total,'total_pages'=>$total===0?0:(int)ceil($total/$filters['limit'])]];
     }
 
     public function find(int $id): ?array

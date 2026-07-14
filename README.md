@@ -11,7 +11,7 @@ Local, offline-first point-of-sale and shop management foundation built with Rea
 
 ## Database setup
 
-Import `database/schema.sql` for a new installation. Existing installations should apply `database/migrations/002_create_products.sql` followed by `database/migrations/003_create_stock_transactions.sql`.
+Import `database/schema.sql` for a new installation. Existing installations should apply the SQL files in database/migrations in numeric order through 012_reconcile_stock_history.sql. Migration 012 safely records legacy quantity discrepancies as auditable stock movements.
 
 1. Start MySQL in XAMPP.
 2. Import `database/schema.sql` using phpMyAdmin or the MySQL command line.
@@ -67,47 +67,24 @@ npm run lint
 npm run build
 ```
 
-## Initial API routes
+## API route groups
 
-- `GET /health` Ã¢â‚¬â€ API and database status
-- `GET /csrf-token` Ã¢â‚¬â€ current session CSRF token
-- `POST /auth/login` Ã¢â‚¬â€ establish a session using the access password
-- `GET /auth/me` Ã¢â‚¬â€ current authenticated user
-- `POST /auth/logout` Ã¢â‚¬â€ end the authenticated session
-- `GET /categories` Ã¢â‚¬â€ list or search categories (admin)
-- `POST /categories` Ã¢â‚¬â€ create a category (admin)
-- `GET /categories/{id}` Ã¢â‚¬â€ retrieve a category (admin)
-- `PUT /categories/{id}` Ã¢â‚¬â€ update a category (admin)
-- `PATCH /categories/{id}/status` Ã¢â‚¬â€ activate or deactivate a category (admin)
-- `DELETE /categories/{id}` Ã¢â‚¬â€ delete an unlinked category (admin)
-- `GET /products` Ã¢â‚¬â€ list and filter products
-- `POST /products` Ã¢â‚¬â€ create a product (admin)
-- `GET /products/{id}` Ã¢â‚¬â€ retrieve product details
-- `PUT /products/{id}` Ã¢â‚¬â€ update a product (admin)
-- `PATCH /products/{id}/status` Ã¢â‚¬â€ change product status (admin)
-- `DELETE /products/{id}` Ã¢â‚¬â€ delete a product without sale or stock history (admin)
-- `GET /inventory` Ã¢â‚¬â€ current stock list (admin)
-- `GET /inventory/summary` Ã¢â‚¬â€ inventory summary (admin)
-- `GET /inventory/transactions` Ã¢â‚¬â€ filtered stock history (admin)
-- `GET /inventory/products/{id}/transactions` Ã¢â‚¬â€ product stock history (admin)
-- `POST /inventory/add` Ã¢â‚¬â€ add stock (admin)
-- `POST /inventory/reduce` Ã¢â‚¬â€ reduce stock (admin)
-- `POST /inventory/adjust` Ã¢â‚¬â€ set final stock quantity (admin)
-- `POST /inventory/opening-stock` Ã¢â‚¬â€ record opening stock (admin)
-- `POST /inventory/damaged` Ã¢â‚¬â€ record damaged stock (admin)
-- `POST /inventory/expired` Ã¢â‚¬â€ record expired stock (admin)
-- `POST /inventory/wastage` Ã¢â‚¬â€ record wastage (admin)
+All business routes return the shared JSON envelope, require an authenticated PHP session, and enforce backend permissions. State-changing routes also require the session CSRF token.
 
-- `GET /pos/products` - cashier-safe searchable POS catalog
-- `GET /pos/categories` - active POS category filters
-- `POST /sales` - transaction-safe sale completion
-- `GET /held-sales` - list permitted active held sales
-- `POST /held-sales` - hold a cart without changing stock
-- `GET /held-sales/{id}` - resume and revalidate a held cart
-- `PUT /held-sales/{id}` - update a held cart
-- `DELETE /held-sales/{id}` - remove a held cart
-All API responses use a consistent JSON envelope. Database and internal PHP errors are logged server-side and are not exposed to the client.
+- Authentication: /csrf-token, /auth/login, /auth/me, /auth/logout
+- Dashboard: /dashboard
+- Categories and products: /categories, /products
+- Inventory: /inventory and /inventory/transactions
+- POS and held carts: /pos/products, /pos/categories, /held-sales
+- Sales and receipts: /sales, /sales/summary, /sales/{id}/receipt
+- Expenses: /expenses and /expense-categories
+- Reports: /reports and /reports/export
+- Users and permissions: /users, /roles, /permissions
+- Settings: /settings and /settings/public
+- Suppliers, purchases, payments and returns: /suppliers, /purchases, /purchase-returns
+- Backups: /backups, /backups/{filename}/download, /backups/{filename}/restore
 
+Database and internal PHP errors are logged server-side and are not exposed to clients.
 
 ## POS held sales
 
@@ -166,6 +143,17 @@ Import `database/migrations/010_create_settings.sql` after the earlier migration
 - Browser printing is the working default. QZ Tray values can be stored but require a separate future integration.
 - Backup schedule and folder values are preferences for the Backups module; this page does not execute scheduled backups.
 - A valid saved PHP time zone is applied at the beginning of every API request. Changes therefore affect the update response and subsequent requests immediately.
+## Backups module
+
+The Backups page creates checksummed JSON database archives in the configured safe relative folder. Backup files are denied direct Apache access and can only be listed or downloaded through authenticated API routes with backups.create. Restore additionally requires backups.restore, a matching schema fingerprint, a valid checksum, the exact RESTORE confirmation, and an automatic pre-restore safety backup.
+
+Database backups contain sensitive password hashes and business records. Keep the backup folder private. Uploaded product images, logos, and expense receipt files are not included yet. Automatic-backup preferences require a separate Windows Task Scheduler command; the application does not claim a scheduled run occurred.
+
+The isolated critical-flow test can be run with:
+
+    php backend/tests/integration_audit.php
+
+It creates and drops only the fixed mh_mini_mart_audit_test database and uses temporary backup storage.
 ## Purchases and suppliers
 
 Existing installations must apply `database/migrations/011_create_purchases_suppliers.sql` after migration 010. Fresh installations receive the same supplier, purchase, payment, return, permission, sequence, and stock-transaction structures through `database/schema.sql`.

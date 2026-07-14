@@ -1,4 +1,4 @@
-﻿const actionOptions = [
+const actionOptions = [
   ["add", "Add stock"],
   ["reduce", "Reduce stock"],
   ["adjust", "Adjust final quantity"],
@@ -18,7 +18,7 @@ function StockActionForm({ product, action, values, errors, isSubmitting, onActi
       <div className="space-y-5 px-6 py-5">
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Product</p>
-          <div className="mt-2 flex items-center justify-between gap-4"><div><strong className="block text-sm text-slate-800">{product.name}</strong><span className="mt-1 block text-xs text-slate-500">{product.product_code} Â· {product.unit_type}</span></div><div className="text-right"><span className="block text-xs text-slate-400">Current stock</span><strong className="mt-1 block text-lg text-slate-900">{Number(product.quantity).toLocaleString()}</strong></div></div>
+          <div className="mt-2 flex items-center justify-between gap-4"><div><strong className="block text-sm text-slate-800">{product.name}</strong><span className="mt-1 block text-xs text-slate-500">{product.product_code} · {product.unit_type}</span></div><div className="text-right"><span className="block text-xs text-slate-400">Current stock</span><strong className="mt-1 block text-lg text-slate-900">{Number(product.quantity).toLocaleString()}</strong></div></div>
         </div>
         <div>
           <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="stock-action">Movement type</label>

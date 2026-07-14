@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   createCategory,
   deleteCategory,
@@ -218,14 +218,14 @@ function CategoriesPage() {
       {successMessage && (
         <div className="flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800" role="status">
           <span>{successMessage}</span>
-          <button type="button" className="font-bold text-emerald-700" onClick={() => setSuccessMessage("")}>Ã—</button>
+          <button type="button" className="font-bold text-emerald-700" onClick={() => setSuccessMessage("")}>×</button>
         </div>
       )}
 
       {pageError && (
         <div className="flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
           <span>{pageError}</span>
-          <button type="button" className="font-bold text-red-600" onClick={() => setPageError("")}>Ã—</button>
+          <button type="button" className="font-bold text-red-600" onClick={() => setPageError("")}>×</button>
         </div>
       )}
 
@@ -321,7 +321,7 @@ function CategoriesPage() {
                       </div>
                     </td>
                     <td className="max-w-sm px-6 py-4 text-sm text-slate-500">
-                      <span className="line-clamp-2">{category.description || "â€”"}</span>
+                      <span className="line-clamp-2">{category.description || "—"}</span>
                     </td>
                     <td className="px-6 py-4"><StatusBadge status={category.status} /></td>
                     <td className="px-6 py-4 text-sm text-slate-500">
