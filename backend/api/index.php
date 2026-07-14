@@ -91,33 +91,16 @@ use App\Validators\ReportValidator;
 use App\Validators\UserValidator;
 use App\Validators\SettingsValidator;
 use App\Validators\SupplierValidator;
+use App\Validators\UserValidator;
+use App\Validators\SettingsValidator;
+use App\Validators\SupplierValidator;
 use App\Validators\PurchaseValidator;
 use App\Validators\PurchaseReturnValidator;
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 header('Cache-Control: no-store');
-
-$allowedOrigins = [
-    'http://localhost:5173',
-    'https://store.mhminimart.com',
-    'http://store.mhminimart.com',
-];
 $requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';
-
-if (in_array($requestOrigin, $allowedOrigins, true)) {
-    header('Access-Control-Allow-Origin: ' . $requestOrigin);
-    header('Access-Control-Allow-Credentials: true');
-    header('Vary: Origin');
-}
-
-header('Access-Control-Allow-Headers: Content-Type, Accept, X-CSRF-Token, X-HTTP-Method-Override');
-header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
-
-if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
-    http_response_code(204);
-    exit;
-}
 
 $composerAutoload = __DIR__ . '/../../vendor/autoload.php';
 if (is_file($composerAutoload)) {
