@@ -98,11 +98,15 @@ header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 header('Cache-Control: no-store');
 
-$allowedOrigin = 'http://localhost:5173';
+$allowedOrigins = [
+    'http://localhost:5173',
+    'https://store.mhminimart.com',
+    'http://store.mhminimart.com',
+];
 $requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';
 
-if ($requestOrigin === $allowedOrigin) {
-    header('Access-Control-Allow-Origin: ' . $allowedOrigin);
+if (in_array($requestOrigin, $allowedOrigins, true)) {
+    header('Access-Control-Allow-Origin: ' . $requestOrigin);
     header('Access-Control-Allow-Credentials: true');
     header('Vary: Origin');
 }
