@@ -3,9 +3,10 @@ name: Deploy Frontend to Hostinger
 on:
   push:
     branches:
-      - main # Agar apki branch ka naam 'master' hai toh isko change kar lein
+      - main
     paths:
-      - 'frontend/**' # Ye action sirf tab chalega jab frontend k folder mein koi change hoga
+      - 'frontend/**'
+  workflow_dispatch: # GitHub Actions UI se manually trigger karne ke liye
 
 jobs:
   build-and-deploy:
