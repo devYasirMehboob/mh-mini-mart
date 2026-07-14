@@ -14,6 +14,7 @@ import {
 const AuthContext = createContext(null);
 function getSafeErrorMessage(error, fallback) {
   if (!error.response) {
+    console.log("ERROR_RESPONSE::", error);
     return "The server could not be reached. Check that the local API is running.";
   }
   return error.response.data?.message || fallback;
