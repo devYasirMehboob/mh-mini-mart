@@ -1,0 +1,14 @@
+<?php
+declare(strict_types=1);
+namespace App\Services;
+use App\Http\HttpException;use App\Repositories\ActivityLogRepository;use App\Repositories\SupplierRepository;use App\Validators\SupplierValidator;
+final class SupplierService{
+ public function __construct(private readonly SupplierRepository$r,private readonly SupplierValidator$v,private readonly ActivityLogRepository$log){}
+ public function list(array$q):array{return$this->r->paginate($this->v->filters($q));}public function options():array{return$this->r->active();}
+ public function get(int$id):array{$s=$this->r->find($id);if(!$s)throw new HttpException('Supplier not found.',404);return$s+['purchases'=>$this->r->purchaseHistory($id),'payments'=>$this->r->payments($id)];}
+ public function create(array$i,int$user):array{$d=$this->v->data($i);if($this->r->nameExists($d['name']))throw new HttpException('A supplier with this name already exists.',409,['name'=>['Supplier name must be unique.']]);$s=$this->r->create($d);$this->log->log($user,'supplier.created','Supplier '.$s['name'].' created.');return$s;}
+ public function update(int$id,array$i,int$user):array{$old=$this->r->find($id);if(!$old)throw new HttpException('Supplier not found.',404);$d=$this->v->data($i);if($this->r->nameExists($d['name'],$id))throw new HttpException('A supplier with this name already exists.',409,['name'=>['Supplier name must be unique.']]);if(number_format((float)$d['opening_balance'],2)!==number_format((float)$old['opening_balance'],2))throw new HttpException('Opening balance cannot be changed after creation.',422,['opening_balance'=>['Use a balance adjustment workflow instead.']]);$s=$this->r->update($id,$d);$this->log->log($user,'supplier.updated','Supplier '.$s['name'].' updated.');return$s;}
+ public function status(int$id,array$i,int$user):array{if(!$this->r->find($id))throw new HttpException('Supplier not found.',404);$s=$this->r->status($id,$this->v->status($i));$this->log->log($user,'supplier.status_changed','Supplier '.$s['name'].' set to '.$s['status'].'.');return$s;}
+ public function delete(int$id,int$user):void{$s=$this->r->find($id);if(!$s)throw new HttpException('Supplier not found.',404);if($this->r->hasHistory($id))throw new HttpException('This supplier has purchase history and cannot be deleted. Deactivate it instead.',409);$this->r->delete($id);$this->log->log($user,'supplier.deleted','Unused supplier deleted.');}
+ public function purchases(int$id):array{if(!$this->r->find($id))throw new HttpException('Supplier not found.',404);return$this->r->purchaseHistory($id);}public function payments(int$id):array{if(!$this->r->find($id))throw new HttpException('Supplier not found.',404);return$this->r->payments($id);}public function statement(int$id,array$q):array{if(!$this->r->find($id))throw new HttpException('Supplier not found.',404);return$this->r->statement($id,$q['date_from']??null,$q['date_to']??null);}
+}

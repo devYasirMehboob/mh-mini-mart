@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@theme {
+  --color-app: #f6f7fb;
+  --color-surface: #ffffff;
+  --color-border: #e6e9f0;
+  --color-ink: #111827;
+  --color-muted: #667085;
+  --color-brand: #2563eb;
+  --color-brand-dark: #1d4ed8;
+}
+
+@layer base {
+  html {
+    font-family: "Manrope Variable", Manrope, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-optical-sizing: auto;
+  }
+
+  body {
+    min-width: 320px;
+    min-height: 100vh;
+    background: var(--color-app);
+    color: var(--color-ink);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  button, a, input, select, textarea {
+    font: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button, a { outline: none; }
+  button:focus-visible, a:focus-visible { box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14); }
+  h1, h2, h3, h4, h5, h6 { letter-spacing: -0.025em; }
+  ::selection { background: #dbeafe; color: #1e3a8a; }
+}
+
+@layer utilities {
+  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .premium-surface {
+    border: 1px solid #e6e9f0;
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(16,24,40,.03), 0 10px 28px rgba(16,24,40,.04);
+  }
+}
+
+
+@media print {
+  @page receipt { size: 80mm auto; margin: 3mm; }
+  @page report { size: A4 landscape; margin: 10mm; }
+  body * { visibility: hidden !important; }
+  .receipt-print-root, .receipt-print-root *, .report-print-root, .report-print-root * { visibility: visible !important; }
+  .receipt-print-root { page: receipt; position: absolute; inset: 0 auto auto 0; width: 74mm !important; max-width: 74mm !important; padding: 0 !important; box-shadow: none !important; }
+  .report-print-root { page: report; position: absolute; inset: 0; width: 100% !important; padding: 0 !important; background: white !important; }
+  .report-print-root .premium-surface { box-shadow: none !important; break-inside: avoid; }
+  .report-print-root table { font-size: 9px !important; }
+  .no-print { display: none !important; }
+}
+

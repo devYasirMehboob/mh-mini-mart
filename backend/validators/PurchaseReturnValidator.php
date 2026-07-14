@@ -1,0 +1,8 @@
+<?php
+declare(strict_types=1);
+namespace App\Validators;
+use App\Http\HttpException;
+final class PurchaseReturnValidator{
+ public function data(array$i):array{$e=[];$purchase=(int)($i['purchase_id']??0);if($purchase<1)$e['purchase_id']=['Select a purchase.'];$date=(string)($i['return_date']??date('Y-m-d'));$d=\DateTime::createFromFormat('Y-m-d',$date);if(!$d||$d->format('Y-m-d')!==$date||$date>date('Y-m-d'))$e['return_date']=['Enter a valid return date.'];$reason=trim((string)($i['reason']??''));if($reason===''||mb_strlen($reason)>500)$e['reason']=['A return reason of up to 500 characters is required.'];$raw=$i['items']??null;if(!is_array($raw)||$raw===[])$e['items']=['Select at least one item to return.'];$items=[];$seen=[];if(is_array($raw))foreach($raw as$n=>$row){$id=(int)($row['purchase_item_id']??0);$q=(string)($row['quantity']??'');if($id<1||isset($seen[$id])){$e["items.$n.purchase_item_id"]=['Select each purchase item once.'];continue;}$seen[$id]=1;if(!preg_match('/^\d{1,9}(?:\.\d{1,3})?$/',$q)||(float)$q<=0){$e["items.$n.quantity"]=['Quantity must be greater than zero with up to 3 decimals.'];continue;}[$w,$f]=array_pad(explode('.',$q,2),2,'');$items[$id]=['purchase_item_id'=>$id,'quantity_milli'=>(int)$w*1000+(int)str_pad($f,3,'0')];}$refund=(string)($i['refund_amount']??'0');if(!preg_match('/^\d{1,10}(?:\.\d{1,2})?$/',$refund))$e['refund_amount']=['Enter a non-negative refund amount.'];$this->fail($e);[$w,$f]=array_pad(explode('.',$refund,2),2,'');return['purchase_id'=>$purchase,'return_date'=>$date,'reason'=>$reason,'refund_cents'=>(int)$w*100+(int)str_pad($f,2,'0'),'items'=>$items];}
+ private function fail(array$e):void{if($e)throw new HttpException('Some return details are invalid.',422,$e);}
+}

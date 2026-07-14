@@ -1,0 +1,36 @@
+import { useEffect, useState } from "react";
+import { cancelSale, exportSales, getSale, getSaleReceipt, getSales, getSalesSummary, refundSale } from "../api/salesApi";
+import AlertMessage from "../components/AlertMessage";
+import EmptyState from "../components/EmptyState";
+import Icon from "../components/Icon";
+import LoadingState from "../components/LoadingState";
+import ReceiptPreview from "../components/sales/ReceiptPreview";
+import SaleActionDialog from "../components/sales/SaleActionDialog";
+import SaleDetailsModal from "../components/sales/SaleDetailsModal";
+import SalesFilters from "../components/sales/SalesFilters";
+import SalesPagination from "../components/sales/SalesPagination";
+import SalesSummaryCards from "../components/sales/SalesSummaryCards";
+import SalesTable from "../components/sales/SalesTable";
+
+const defaults={search:"",date_from:"",date_to:"",cashier_id:"",payment_method:"",payment_status:"",status:"",customer:"",min_total:"",max_total:"",page:1,limit:20,sort_by:"created_at",sort_direction:"desc"};
+const emptySummary={total_sales:0,gross_sales:0,total_discounts:0,net_sales:0,refunded_amount:0,cancelled_sales:0};
+function safeMessage(error,fallback){if(!error.response)return"The local API could not be reached. Check that XAMPP is running.";return error.response.data?.message||fallback;}
+function paramsOf(filters){return Object.fromEntries(Object.entries(filters).filter(([,value])=>value!==""&&value!==null));}
+
+function SalesPage(){
+  const[filters,setFilters]=useState(defaults);const[search,setSearch]=useState("");const[sales,setSales]=useState([]);const[summary,setSummary]=useState(emptySummary);const[pagination,setPagination]=useState(null);const[cashiers,setCashiers]=useState([]);const[permissions,setPermissions]=useState({});const[loading,setLoading]=useState(true);const[refreshing,setRefreshing]=useState(false);const[reload,setReload]=useState(0);const[alert,setAlert]=useState(null);
+  const[detailsOpen,setDetailsOpen]=useState(false);const[details,setDetails]=useState(null);const[detailsLoading,setDetailsLoading]=useState(false);const[receiptOpen,setReceiptOpen]=useState(false);const[receipt,setReceipt]=useState(null);const[receiptLoading,setReceiptLoading]=useState(false);const[action,setAction]=useState(null);const[actionLoading,setActionLoading]=useState(false);const[exporting,setExporting]=useState(false);
+  useEffect(()=>{document.title="Sales | MH Mini Mart";},[]);
+  useEffect(()=>{const timer=setTimeout(()=>setFilters((current)=>current.search===search?current:{...current,search,page:1}),350);return()=>clearTimeout(timer);},[search]);
+  useEffect(()=>{let active=true;async function load(){setRefreshing(true);try{const query=paramsOf(filters);const[list,total]=await Promise.all([getSales(query),getSalesSummary(query)]);if(!active)return;setSales(list.sales);setPagination(list.pagination);setCashiers(list.cashiers||[]);setPermissions(list.permissions||{});setSummary(total);}catch(error){if(active)setAlert({type:"error",message:safeMessage(error,"Sales could not be loaded.")});}finally{if(active){setLoading(false);setRefreshing(false);}}}load();return()=>{active=false;};},[filters,reload]);
+  function updateFilters(patch){setFilters((current)=>({...current,...patch}));}
+  function clearFilters(){setSearch("");setFilters(defaults);}
+  async function openDetails(sale){setDetailsOpen(true);setDetails(null);setDetailsLoading(true);try{setDetails(await getSale(sale.id));}catch(error){setDetailsOpen(false);setAlert({type:"error",message:safeMessage(error,"Sale details could not be loaded.")});}finally{setDetailsLoading(false);}}
+  async function openReceipt(sale){setReceiptOpen(true);setReceipt(null);setReceiptLoading(true);try{setReceipt(await getSaleReceipt(sale.id));}catch(error){setReceiptOpen(false);setAlert({type:"error",message:safeMessage(error,"Receipt could not be loaded.")});}finally{setReceiptLoading(false);}}
+  async function submitAction(payload){setActionLoading(true);try{const response=action.type==="cancel"?await cancelSale(action.sale.id,payload.reason):await refundSale(action.sale.id,payload);setAlert({type:"success",message:response.message});if(detailsOpen)setDetails(response.data);setAction(null);setReload((value)=>value+1);}catch(error){setAlert({type:"error",message:safeMessage(error,action.type==="cancel"?"Sale could not be cancelled.":"Sale could not be refunded.")});}finally{setActionLoading(false);}}
+  async function handleExport(){setExporting(true);try{const response=await exportSales(paramsOf(filters));const url=URL.createObjectURL(response.data);const link=document.createElement("a");link.href=url;link.download=`mh-mini-mart-sales-${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);setAlert({type:"success",message:"Filtered sales exported successfully."});}catch(error){setAlert({type:"error",message:safeMessage(error,"Sales export could not be created.")});}finally{setExporting(false);}}
+  return <div className="space-y-5"><header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><h2 className="text-[28px] font-extrabold tracking-[-0.035em] text-slate-950">Sales</h2><p className="mt-1.5 text-sm text-slate-500">Search transactions, review saved receipts and manage authorized reversals.</p></div><div className="flex gap-2"><button type="button" disabled={refreshing} onClick={()=>setReload((value)=>value+1)} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-600 disabled:opacity-50"><Icon name="refresh" className={`size-4 ${refreshing?"animate-spin":""}`}/>Refresh</button>{permissions.can_export&&<button type="button" disabled={exporting} onClick={handleExport} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-bold text-white disabled:opacity-50"><Icon name="export" className="size-4"/>{exporting?"Exporting...":"Export CSV"}</button>}</div></header>
+  <AlertMessage type={alert?.type} message={alert?.message} onDismiss={()=>setAlert(null)}/>{!loading&&<SalesSummaryCards summary={summary}/>}<SalesFilters filters={filters} search={search} cashiers={cashiers} onSearch={setSearch} onChange={updateFilters} onClear={clearFilters}/><section className="premium-surface overflow-hidden rounded-xl">{loading?<LoadingState label="Loading sales..."/>:sales.length===0?<EmptyState icon="sales" title="No sales match these filters" description="Clear or adjust the selected filters to see other transactions."/>:<><SalesTable sales={sales} permissions={permissions} onView={openDetails} onReceipt={openReceipt} onAction={(type,sale)=>setAction({type,sale})}/><SalesPagination pagination={pagination} onPage={(page)=>updateFilters({page})}/></>}</section>
+  <SaleDetailsModal isOpen={detailsOpen} sale={details} isLoading={detailsLoading} onClose={()=>setDetailsOpen(false)} onReceipt={openReceipt} onAction={(type,sale)=>setAction({type,sale})}/><ReceiptPreview isOpen={receiptOpen} receipt={receipt} isLoading={receiptLoading} onClose={()=>setReceiptOpen(false)}/><SaleActionDialog action={action} isSubmitting={actionLoading} onClose={()=>setAction(null)} onSubmit={submitAction}/></div>;
+}
+export default SalesPage;

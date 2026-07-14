@@ -1,0 +1,2 @@
+import useSettings from "../../hooks/useSettings";import {formatDateTime} from "../../utils/calculateSaleTotals";
+function ReportPrintHeader({title,filters}){const{settings}=useSettings();return <header className="hidden print:block"><h1 className="text-2xl font-bold">{settings?.shop?.shop_name||"Shop"} - {title}</h1><p className="mt-1 text-sm">Period: {filters.date_from||"All dates"} to {filters.date_to||"All dates"}</p><p className="text-xs">Generated: {formatDateTime(new Date())}</p></header>}export default ReportPrintHeader;

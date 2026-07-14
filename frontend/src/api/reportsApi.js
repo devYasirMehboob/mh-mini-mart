@@ -1,0 +1,5 @@
+import apiClient from "./apiClient";
+const endpoints={overview:"/reports/overview",sales:"/reports/sales",daily_sales:"/reports/sales/daily",weekly_sales:"/reports/sales/weekly",monthly_sales:"/reports/sales/monthly",products:"/reports/products",categories:"/reports/categories",cashiers:"/reports/cashiers",payment_methods:"/reports/payment-methods",expenses:"/reports/expenses",profit:"/reports/profit",stock:"/reports/stock",low_stock:"/reports/stock/low",out_of_stock:"/reports/stock/out",wastage:"/reports/wastage",best_selling_products:"/reports/best-selling-products"};
+export async function getReport(type,params={},signal){const response=await apiClient.get(endpoints[type],{params,signal});return response.data.data;}
+export async function getReportOptions(){const response=await apiClient.get("/reports/options");return response.data.data;}
+export async function exportReport(type,params={}){return apiClient.get("/reports/export",{params:{...params,report_type:type},responseType:"blob"});}

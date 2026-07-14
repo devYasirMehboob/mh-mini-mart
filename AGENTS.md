@@ -35,11 +35,11 @@ The application must prioritize:
 * JavaScript
 * React Router
 * Axios
-* Bootstrap 5
-* Bootstrap Icons
-* Custom CSS
+* Tailwind CSS
 
 Do not add another UI framework unless explicitly requested.
+
+Do not use Bootstrap.
 
 Do not use TypeScript unless explicitly requested.
 
@@ -50,6 +50,8 @@ Do not use TypeScript unless explicitly requested.
 * PDO
 * REST-style JSON API
 * PHP sessions for authentication
+* Object-oriented architecture using classes and namespaces
+* Controllers, services, and repositories with dependency injection where practical
 
 Do not introduce Laravel, Symfony, CodeIgniter, or another PHP framework unless explicitly requested.
 
@@ -111,6 +113,7 @@ mh-mini-mart/
 │   ├── helpers/
 │   ├── middleware/
 │   ├── models/
+│   ├── repositories/
 │   ├── services/
 │   ├── uploads/
 │   └── index.php
@@ -257,27 +260,27 @@ Avoid:
 * Tiny controls
 * Crowded layouts
 
-Suggested design tokens:
+Suggested Tailwind design tokens:
 
-```css
-:root {
-  --app-bg: #f6f7f9;
-  --surface: #ffffff;
-  --surface-muted: #f9fafb;
-  --border: #e5e7eb;
-  --text-primary: #1f2937;
-  --text-secondary: #6b7280;
-  --primary: #111827;
-  --primary-hover: #374151;
-  --success: #198754;
-  --warning: #f59e0b;
-  --danger: #dc3545;
-  --sidebar-width: 240px;
-  --border-radius: 10px;
-}
+```js
+export default {
+  theme: {
+    extend: {
+      colors: {
+        app: "#f6f7f9",
+        surface: "#ffffff",
+        border: "#e5e7eb",
+        primary: "#111827",
+      },
+      borderRadius: {
+        app: "10px",
+      },
+    },
+  },
+};
 ```
 
-Use Bootstrap utilities where practical, but create reusable React components instead of repeating large blocks of markup.
+Use Tailwind utility classes for all frontend styling. Create reusable React components instead of repeating large blocks of markup.
 
 ---
 
@@ -292,7 +295,7 @@ function ProductCard({ product, onAdd }) {
   return (
     <button
       type="button"
-      className="product-card"
+      className="rounded-lg border border-gray-200 bg-white p-3 text-left"
       onClick={() => onAdd(product)}
     >
       <span>{product.name}</span>
@@ -381,7 +384,13 @@ Do not display raw database or PHP errors to users.
 Use:
 
 * `declare(strict_types=1);`
-* PDO prepared statements
+* Object-oriented PHP using classes and namespaces
+* Controllers for HTTP orchestration
+* Services for business logic
+* Repositories for data access
+* Constructor-based dependency injection where practical
+* PDO for the MySQL database connection
+* PDO prepared statements for every database query
 * Type declarations where practical
 * Consistent JSON responses
 * Clear separation between routing, validation, business logic, and data access
@@ -440,18 +449,21 @@ Use suitable status codes:
 
 ## 10. Authentication and Authorization
 
-Use PHP sessions for local authentication.
+Use password-only access with PHP sessions for local authentication.
 
 Authentication requirements:
 
-* Login using username or email
-* Passwords hashed with `password_hash`
-* Passwords checked with `password_verify`
+* The login screen contains only one password field and a Login button.
+* Do not request a username or email on the login screen.
+* Store the password securely using `password_hash()`.
+* Verify the password using `password_verify()`.
 * Session regenerated after successful login
 * Logout destroys the session
-* Protected API endpoints verify authentication
+* All backend API routes verify authentication, except the minimum authentication entry points required to establish a session.
 * Backend permissions are authoritative
 * Frontend route guards are only for user experience
+* All protected React routes redirect unauthorized users to the login screen.
+* Never hardcode the plain password in React or expose it through API responses.
 
 Roles:
 
@@ -509,6 +521,8 @@ For uploaded images:
 * Never trust the original filename
 
 Do not store plain-text passwords.
+
+Do not hardcode the plain access password in frontend code or return it from an API response.
 
 Do not expose database credentials in the frontend.
 
@@ -718,7 +732,7 @@ Receipt content:
 
 Support 80mm paper first.
 
-Use print-specific CSS.
+Use Tailwind print utilities for receipt-specific print styling.
 
 Hide navigation, actions, and non-receipt elements during printing.
 

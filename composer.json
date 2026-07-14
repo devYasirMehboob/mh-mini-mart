@@ -1,0 +1,20 @@
+{
+  "name": "mh-mini-mart/application",
+  "description": "Local MH Mini Mart point-of-sale application",
+  "type": "project",
+  "require": {
+    "php": ">=8.1"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\Config\\": "backend/config/",
+      "App\\Controllers\\": "backend/controllers/",
+      "App\\Http\\": "backend/helpers/",
+      "App\\Middleware\\": "backend/middleware/",
+      "App\\Repositories\\": "backend/repositories/",
+      "App\\Security\\": "backend/helpers/",
+      "App\\Services\\": "backend/services/",
+      "App\\Validators\\": "backend/validators/"
+    }
+  }
+}

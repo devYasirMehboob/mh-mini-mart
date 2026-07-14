@@ -1,0 +1,3 @@
+import {reportGroups} from "./reportConfig";
+function ReportNavigation({active,onChange}){return <aside className="premium-surface rounded-xl p-3 lg:sticky lg:top-[98px]"><div className="space-y-4">{reportGroups.map(group=><section key={group.label}><p className="mb-1.5 px-2 text-[9px] font-extrabold uppercase tracking-[0.14em] text-slate-400">{group.label}</p><div className="space-y-1">{group.items.map(([key,label])=><button key={key} type="button" onClick={()=>onChange(key)} className={`w-full rounded-lg px-3 py-2.5 text-left text-xs font-bold transition ${active===key?'bg-blue-50 text-blue-700 ring-1 ring-blue-100':'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}>{label}</button>)}</div></section>)}</div></aside>}
+export default ReportNavigation;
