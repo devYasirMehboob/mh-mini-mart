@@ -17,6 +17,7 @@ function getSafeErrorMessage(error, fallback) {
     console.log("ERROR_RESPONSE::", error);
     return "The server could not be reached. Check that the local API is running.";
   }
+  console.log("ERROR_RESPONSE_ELSE::", error.response);
   return error.response.data?.message || fallback;
 }
 export function AuthProvider({ children }) {
