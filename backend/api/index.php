@@ -91,9 +91,6 @@ use App\Validators\ReportValidator;
 use App\Validators\UserValidator;
 use App\Validators\SettingsValidator;
 use App\Validators\SupplierValidator;
-use App\Validators\UserValidator;
-use App\Validators\SettingsValidator;
-use App\Validators\SupplierValidator;
 use App\Validators\PurchaseValidator;
 use App\Validators\PurchaseReturnValidator;
 
