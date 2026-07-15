@@ -46,7 +46,8 @@ final class ProductRepository
 
         $statement = $this->database->connection()->prepare(
             'SELECT p.id, p.category_id, c.name AS category_name, p.name,
-                    p.product_code, p.barcode, p.purchase_cost, p.selling_price,
+                    p.product_code, p.barcode, p.barcode_type, p.barcode_source, p.barcode_printed_at, p.barcode_print_count,
+                    p.purchase_cost, p.selling_price,
                     p.quantity, p.minimum_stock, p.unit_type, p.image,
                     p.track_stock, p.status, p.created_at, p.updated_at
              FROM products p
@@ -79,7 +80,8 @@ final class ProductRepository
     {
         $statement = $this->database->connection()->prepare(
             'SELECT p.id, p.category_id, c.name AS category_name, p.name,
-                    p.product_code, p.barcode, p.purchase_cost, p.selling_price,
+                    p.product_code, p.barcode, p.barcode_type, p.barcode_source, p.barcode_printed_at, p.barcode_print_count,
+                    p.purchase_cost, p.selling_price,
                     p.quantity, p.minimum_stock, p.unit_type, p.image,
                     p.track_stock, p.status, p.created_at, p.updated_at
              FROM products p
@@ -219,7 +221,7 @@ final class ProductRepository
         if ($ids === []) return [];
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $statement = $this->database->connection()->prepare(
-            'SELECT id, name, product_code, selling_price, purchase_cost, quantity, unit_type, track_stock, status FROM products WHERE id IN (' . $placeholders . ') ORDER BY id FOR UPDATE'
+            'SELECT id, name, product_code, barcode, barcode_type, barcode_source, selling_price, purchase_cost, quantity, unit_type, track_stock, status FROM products WHERE id IN (' . $placeholders . ') ORDER BY id FOR UPDATE'
         );
         foreach (array_values($ids) as $index => $id) $statement->bindValue($index + 1, $id, PDO::PARAM_INT);
         $statement->execute();
@@ -238,6 +240,33 @@ final class ProductRepository
         $statement = $this->database->connection()->prepare('UPDATE products SET purchase_cost = :cost WHERE id = :id');
         $statement->execute(['id' => $id, 'cost' => $cost]);
     }
+
+    public function updateBarcodeData(int $id, ?string $barcode, ?string $type, ?string $source): void
+    {
+        $statement = $this->database->connection()->prepare(
+            'UPDATE products SET barcode = :barcode, barcode_type = :type, barcode_source = :source WHERE id = :id'
+        );
+        $statement->execute([
+            'id' => $id,
+            'barcode' => $barcode,
+            'type' => $type,
+            'source' => $source
+        ]);
+    }
+
+    public function recordBarcodePrint(array $ids): void
+    {
+        if ($ids === []) return;
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $statement = $this->database->connection()->prepare(
+            'UPDATE products SET barcode_printed_at = CURRENT_TIMESTAMP, barcode_print_count = barcode_print_count + 1 WHERE id IN (' . $placeholders . ')'
+        );
+        foreach (array_values($ids) as $index => $id) {
+            $statement->bindValue($index + 1, $id, PDO::PARAM_INT);
+        }
+        $statement->execute();
+    }
+
 
     private function valueExists(string $column, string $value, ?int $ignoreId): bool
     {

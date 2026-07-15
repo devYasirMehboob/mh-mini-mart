@@ -1,22 +1,239 @@
-import {useEffect,useMemo,useState} from "react";
-import {getSettings,removeShopLogo,updateSettings,uploadShopLogo} from "../api/settingsApi";
-import AlertMessage from "../components/AlertMessage";import LoadingState from "../components/LoadingState";import Icon from "../components/Icon";
-import LogoUploader from "../components/settings/LogoUploader";import SettingsNavigation from "../components/settings/SettingsNavigation";import SettingsSaveBar from "../components/settings/SettingsSaveBar";import SettingsSectionForm from "../components/settings/SettingsSectionForm";import {settingsSections} from "../components/settings/settingsConfig";import useSettings from "../hooks/useSettings";
-const safe=(error,fallback)=>error.response?.data?.message||fallback;
-function clone(value){return JSON.parse(JSON.stringify(value));}
-function SettingsPage(){
- const{refreshSettings}=useSettings();const[settings,setSettings]=useState(null);const[original,setOriginal]=useState(null);const[active,setActive]=useState("shop");const[loading,setLoading]=useState(true);const[busy,setBusy]=useState(false);const[alert,setAlert]=useState(null);const[errors,setErrors]=useState({});
- const section=useMemo(()=>settingsSections.find(item=>item.key===active),[active]);const dirty=settings&&original?JSON.stringify(settings[active])!==JSON.stringify(original[active]):false;
- async function load(){setLoading(true);setAlert(null);try{const data=await getSettings();setSettings(data);setOriginal(clone(data));}catch(error){setAlert({type:"error",message:safe(error,"Settings could not be loaded.")});}finally{setLoading(false)}}
- useEffect(()=>{document.title="Settings | MH Mini Mart";load();},[]);
- useEffect(()=>{const warn=e=>{if(dirty){e.preventDefault();e.returnValue="";}};window.addEventListener("beforeunload",warn);return()=>window.removeEventListener("beforeunload",warn);},[dirty]);
- function select(next){if(dirty&&!window.confirm("Discard unsaved changes in this settings section?"))return;if(dirty)setSettings(current=>({...current,[active]:clone(original[active])}));setErrors({});setActive(next);}
- function change(key,value){setSettings(current=>({...current,[active]:{...current[active],[key]:value}}));setErrors(current=>{const next={...current};delete next[`${active}.${key}`];return next;});}
- function reset(){setSettings(current=>({...current,[active]:clone(original[active])}));setErrors({});}
- async function save(){setBusy(true);setErrors({});try{const response=await updateSettings({[active]:settings[active]});setSettings(response.data);setOriginal(clone(response.data));await refreshSettings();setAlert({type:"success",message:response.message});}catch(error){setErrors(error.response?.data?.errors||{});setAlert({type:"error",message:safe(error,"Settings could not be saved.")});}finally{setBusy(false)}}
- async function upload(file){setBusy(true);try{const response=await uploadShopLogo(file);const fresh=await getSettings();setSettings(fresh);setOriginal(clone(fresh));await refreshSettings();setAlert({type:"success",message:response.message});}catch(error){setAlert({type:"error",message:safe(error,"Shop logo could not be uploaded.")});}finally{setBusy(false)}}
- async function remove(){if(!window.confirm("Remove the current shop logo?"))return;setBusy(true);try{const response=await removeShopLogo();const fresh=await getSettings();setSettings(fresh);setOriginal(clone(fresh));await refreshSettings();setAlert({type:"success",message:response.message});}catch(error){setAlert({type:"error",message:safe(error,"Shop logo could not be removed.")});}finally{setBusy(false)}}
- if(loading)return <LoadingState label="Loading system settings..."/>;
- if(!settings)return <div className="space-y-4"><AlertMessage type="error" message={alert?.message}/><button type="button" onClick={load} className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white">Try again</button></div>;
- return <div className="space-y-5"><header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-blue-600">System configuration</span><h2 className="mt-2 text-[28px] font-extrabold tracking-[-0.035em] text-slate-950">Settings</h2><p className="mt-1.5 max-w-2xl text-sm text-slate-500">Manage one trusted configuration for your shop, sales, receipts and local operation.</p></div><button type="button" disabled={busy} onClick={load} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-600"><Icon name="refresh" className="size-4"/>Refresh</button></header><AlertMessage type={alert?.type} message={alert?.message} onDismiss={()=>setAlert(null)}/>{active==="shop"&&<LogoUploader shop={settings.shop} isBusy={busy} onUpload={upload} onRemove={remove}/>}<div className="grid items-start gap-5 lg:grid-cols-[280px_minmax(0,1fr)]"><aside className="premium-surface rounded-xl p-3 lg:sticky lg:top-[94px]"><SettingsNavigation sections={settingsSections} active={active} onSelect={select} dirty={dirty?active:null}/></aside><main><SettingsSectionForm section={section} values={settings[active]} errors={errors} onChange={change} disabled={busy}/><SettingsSaveBar dirty={dirty} busy={busy} onReset={reset} onSave={save}/></main></div></div>;
-}export default SettingsPage;
+import { useEffect, useMemo, useState } from "react";
+import {
+  getSettings,
+  removeShopLogo,
+  updateSettings,
+  uploadShopLogo,
+} from "../api/settingsApi";
+import AlertMessage from "../components/AlertMessage";
+import LoadingState from "../components/LoadingState";
+import Icon from "../components/Icon";
+import LogoUploader from "../components/settings/LogoUploader";
+import SettingsNavigation from "../components/settings/SettingsNavigation";
+import SettingsSaveBar from "../components/settings/SettingsSaveBar";
+import SettingsSectionForm from "../components/settings/SettingsSectionForm";
+import { settingsSections } from "../components/settings/settingsConfig";
+import useSettings from "../hooks/useSettings";
+const safe = (error, fallback) => error.response?.data?.message || fallback;
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+function SettingsPage() {
+  const { refreshSettings } = useSettings();
+  const [settings, setSettings] = useState(null);
+  const [original, setOriginal] = useState(null);
+  const [active, setActive] = useState("shop");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [alert, setAlert] = useState(null);
+  const [errors, setErrors] = useState({});
+  const section = useMemo(
+    () => settingsSections.find((item) => item.key === active),
+    [active],
+  );
+  const dirty =
+    settings && original
+      ? JSON.stringify(settings[active]) !== JSON.stringify(original[active])
+      : false;
+  async function load() {
+    setLoading(true);
+    setAlert(null);
+    try {
+      const data = await getSettings();
+      setSettings(data);
+      setOriginal(clone(data));
+    } catch (error) {
+      setAlert({
+        type: "error",
+        message: safe(error, "Settings could not be loaded."),
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    document.title = "Settings | MH Mini Mart";
+    load();
+  }, []);
+  useEffect(() => {
+    const warn = (e) => {
+      if (dirty) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+  function select(next) {
+    if (
+      dirty &&
+      !window.confirm("Discard unsaved changes in this settings section?")
+    )
+      return;
+    if (dirty)
+      setSettings((current) => ({
+        ...current,
+        [active]: clone(original[active]),
+      }));
+    setErrors({});
+    setActive(next);
+  }
+  function change(key, value) {
+    setSettings((current) => ({
+      ...current,
+      [active]: { ...current[active], [key]: value },
+    }));
+    setErrors((current) => {
+      const next = { ...current };
+      delete next[`${active}.${key}`];
+      return next;
+    });
+  }
+  function reset() {
+    setSettings((current) => ({
+      ...current,
+      [active]: clone(original[active]),
+    }));
+    setErrors({});
+  }
+  async function save() {
+    setBusy(true);
+    setErrors({});
+    try {
+      const response = await updateSettings({ [active]: settings[active] });
+      setSettings(response.data);
+      setOriginal(clone(response.data));
+      await refreshSettings();
+      setAlert({ type: "success", message: response.message });
+    } catch (error) {
+      setErrors(error.response?.data?.errors || {});
+      setAlert({
+        type: "error",
+        message: safe(error, "Settings could not be saved."),
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function upload(file) {
+    setBusy(true);
+    try {
+      const response = await uploadShopLogo(file);
+      const fresh = await getSettings();
+      setSettings(fresh);
+      setOriginal(clone(fresh));
+      await refreshSettings();
+      setAlert({ type: "success", message: response.message });
+    } catch (error) {
+      setAlert({
+        type: "error",
+        message: safe(error, "Shop logo could not be uploaded."),
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function remove() {
+    if (!window.confirm("Remove the current shop logo?")) return;
+    setBusy(true);
+    try {
+      const response = await removeShopLogo();
+      const fresh = await getSettings();
+      setSettings(fresh);
+      setOriginal(clone(fresh));
+      await refreshSettings();
+      setAlert({ type: "success", message: response.message });
+    } catch (error) {
+      setAlert({
+        type: "error",
+        message: safe(error, "Shop logo could not be removed."),
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+  if (loading) return <LoadingState label="Loading system settings..." />;
+  if (!settings)
+    return (
+      <div className="space-y-4">
+        <AlertMessage type="error" message={alert?.message} />
+        <button
+          type="button"
+          onClick={load}
+          className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  return (
+    <div className="space-y-6">
+      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div>
+          <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-600">
+            System configuration
+          </span>
+          <h2 className="mt-1 text-[28px] font-extrabold tracking-tight text-slate-950">
+            Settings
+          </h2>
+          <p className="mt-1.5 max-w-2xl text-sm text-slate-500">
+            Manage one trusted configuration for your shop, sales, receipts and
+            local operation.
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={load}
+          className="inline-flex min-h-11 items-center justify-center gap-2.5 rounded-xl border border-slate-200 bg-white px-5 text-[13px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50"
+        >
+          <Icon
+            name="refresh"
+            className={`size-4 ${loading ? "animate-spin" : ""}`}
+          />
+          Refresh
+        </button>
+      </header>
+      <AlertMessage
+        type={alert?.type}
+        message={alert?.message}
+        onDismiss={() => setAlert(null)}
+      />
+      {active === "shop" && (
+        <LogoUploader
+          shop={settings.shop}
+          isBusy={busy}
+          onUpload={upload}
+          onRemove={remove}
+        />
+      )}
+      <div className="flex flex-col lg:grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px] xl:grid-cols-[minmax(0,1fr)_300px]">
+        <aside className="lg:sticky lg:top-[94px] lg:order-last">
+          <SettingsNavigation
+            sections={settingsSections}
+            active={active}
+            onSelect={select}
+            dirty={dirty ? active : null}
+          />
+        </aside>
+        <main>
+          <SettingsSectionForm
+            section={section}
+            values={settings[active]}
+            errors={errors}
+            onChange={change}
+            disabled={busy}
+          />
+          <SettingsSaveBar
+            dirty={dirty}
+            busy={busy}
+            onReset={reset}
+            onSave={save}
+          />
+        </main>
+      </div>
+    </div>
+  );
+}
+export default SettingsPage;

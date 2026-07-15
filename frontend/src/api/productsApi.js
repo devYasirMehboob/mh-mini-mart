@@ -21,7 +21,12 @@ export async function updateProduct(id, data) {
 }
 
 export async function updateProductStatus(id, status) {
-  const response = await apiClient.patch("/products/" + id + "/status", { status });
+  const response = await apiClient.patch(`/products/${id}/status`, { status });
+  return response.data;
+}
+
+export async function generateProductBarcode(id) {
+  const response = await apiClient.post(`/products/${id}/barcode/generate`);
   return response.data;
 }
 

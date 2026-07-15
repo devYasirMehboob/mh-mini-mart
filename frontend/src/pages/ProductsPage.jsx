@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { getCategories } from "../api/categoriesApi";
 import {
   createProduct,
@@ -8,6 +9,7 @@ import {
   productImageUrl,
   updateProduct,
   updateProductStatus,
+  generateProductBarcode,
 } from "../api/productsApi";
 import AlertMessage from "../components/AlertMessage";
 import ConfirmDialog from "../components/ConfirmDialog";
@@ -243,6 +245,22 @@ function ProductsPage() {
     }
   }
 
+  async function handleGenerateBarcode() {
+    if (!editingProduct) return;
+    try {
+      setIsSubmitting(true);
+      const response = await generateProductBarcode(editingProduct.id);
+      setFormValues((current) => ({ ...current, barcode: response.data.product.barcode }));
+      setEditingProduct(response.data.product);
+      setAlert({ type: "success", message: response.message });
+      await loadProducts(appliedFilters);
+    } catch (error) {
+      setAlert({ type: "error", message: apiErrorMessage(error, "Unable to generate barcode.") });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   async function handleStatus(product) {
     setActionId(product.id);
 
@@ -303,9 +321,18 @@ function ProductsPage() {
           <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-[28px]">Products</h2>
           <p className="mt-2 text-sm text-slate-500">Manage product details, pricing, stock, and availability.</p>
         </div>
-        {canCreate && <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700" type="button" onClick={openCreateForm}>
-          <Icon name="plus" className="size-[18px]" /> Add product
-        </button>}
+        <div className="flex items-center gap-3">
+          {can("labels.print") && (
+            <Link to="/products/labels" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-100 px-5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-200">
+              <Icon name="printer" className="size-[18px]" /> Print labels
+            </Link>
+          )}
+          {canCreate && (
+            <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700" type="button" onClick={openCreateForm}>
+              <Icon name="plus" className="size-[18px]" /> Add product
+            </button>
+          )}
+        </div>
       </section>
 
       <AlertMessage type={alert?.type} message={alert?.message} onDismiss={() => setAlert(null)} />
@@ -342,7 +369,7 @@ function ProductsPage() {
       </section>
 
       <Modal isOpen={formMode !== null} title={formMode === "edit" ? "Edit product" : "Add product"} description={formMode === "edit" ? "Update product details, pricing, and stock." : "Add a new product to the shop catalogue."} onClose={closeForm} size="lg">
-        <ProductForm values={formValues} errors={formErrors} canViewCosts={canViewCosts} isEdit={formMode === "edit"} categories={categories} imagePreview={imagePreview} isSubmitting={isSubmitting} submitLabel={formMode === "edit" ? "Save changes" : "Add product"} onChange={handleFormChange} onImageChange={handleImageChange} onRemoveImage={removeImage} onSubmit={handleSubmit} onCancel={closeForm} />
+        <ProductForm values={formValues} errors={formErrors} canViewCosts={canViewCosts} isEdit={formMode === "edit"} categories={categories} imagePreview={imagePreview} isSubmitting={isSubmitting} submitLabel={formMode === "edit" ? "Save changes" : "Add product"} onChange={handleFormChange} onImageChange={handleImageChange} onRemoveImage={removeImage} onSubmit={handleSubmit} onCancel={closeForm} onGenerateBarcode={handleGenerateBarcode} />
       </Modal>
 
       <Modal isOpen={detailsProduct !== null} title="Product details" description="Complete product information." onClose={() => setDetailsProduct(null)} size="lg">

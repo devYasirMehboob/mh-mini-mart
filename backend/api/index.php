@@ -13,6 +13,7 @@ use App\Controllers\PosController;
 use App\Controllers\HeldSaleController;
 use App\Controllers\ExpenseController;
 use App\Controllers\ExpenseCategoryController;
+
 use App\Controllers\ReportController;
 use App\Controllers\SaleController;
 use App\Controllers\UserController;
@@ -21,6 +22,8 @@ use App\Controllers\SettingsController;
 use App\Controllers\SupplierController;
 use App\Controllers\PurchaseController;
 use App\Controllers\PurchaseReturnController;
+use App\Controllers\BarcodeController;
+use App\Controllers\LabelController;
 use App\Http\HttpException;
 use App\Http\JsonResponse;
 use App\Http\Request;
@@ -118,7 +121,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
     exit;
 }
 $composerAutoload = __DIR__ . '/../../vendor/autoload.php';
-if (is_file($composerAutoload)) {
+$backendComposerAutoload = __DIR__ . '/../vendor/autoload.php';
+if (is_file($backendComposerAutoload)) {
+    require_once $backendComposerAutoload;
+} elseif (is_file($composerAutoload)) {
     require_once $composerAutoload;
 }
 require_once __DIR__ . '/../autoload.php';
@@ -218,18 +224,25 @@ try {
         $session
     );
 
+    $barcodeService = new \App\Services\BarcodeService();
+    $productService = new ProductService(
+        $database,
+        new ProductRepository($database),
+        new StockTransactionRepository($database),
+        $activityRepository,
+        new ProductValidator(),
+        new ProductImageService(__DIR__ . '/../uploads/products'),
+        $barcodeService
+    );
+
     $productController = new ProductController(
         $request,
-        new ProductService(
-            $database,
-            new ProductRepository($database),
-            new StockTransactionRepository($database),
-            $activityRepository,
-            new ProductValidator(),
-            new ProductImageService(__DIR__ . '/../uploads/products')
-        ),
+        $productService,
         $session
     );
+
+    $barcodeController = new BarcodeController($request, $productService, $barcodeService);
+    $labelController = new LabelController($request, new ProductRepository($database), $purchaseRepository, $productService, $barcodeService);
 
 $inventoryController = new InventoryController(
         $request,
@@ -472,6 +485,14 @@ if (str_starts_with($path, '/products')) {
             $productController->index($authenticatedUser);
         }
 
+        if (preg_match('#^/products/([1-9][0-9]*)/barcode/generate$#', $path, $matches) === 1) {
+            $authorizationService->requirePermission($authenticatedUser, 'barcodes.generate');
+            if ($method === 'POST') $barcodeController->generate((int) $matches[1]);
+        }
+        if (preg_match('#^/products/([1-9][0-9]*)/barcode$#', $path, $matches) === 1) {
+            $authorizationService->requirePermission($authenticatedUser, 'barcodes.generate');
+            if ($method === 'PUT') $barcodeController->update((int) $matches[1]);
+        }
 
         if ($method === 'POST' && $path === '/products') {
             $productController->store($authenticatedUser);
@@ -629,6 +650,16 @@ if (str_starts_with($path, '/inventory')) {
             '/reports/purchases/returns' => 'purchase_returns',
         ];
         if ($method === 'GET' && isset($reportRoutes[$path])) $reportController->show($reportRoutes[$path], $authenticatedUser);
+    }
+
+    if (preg_match('#^/barcode/image/(.+)$#', $path, $matches) === 1) {
+        if ($method === 'GET') $barcodeController->image(rawurldecode($matches[1]));
+    }
+
+    if (str_starts_with($path, '/barcode-labels')) {
+        $authorizationService->requirePermission($authenticatedUser, 'labels.print');
+        if ($method === 'GET' && $path === '/barcode-labels/products') $labelController->products();
+        if ($method === 'POST' && $path === '/barcode-labels/print-data') $labelController->generatePrintData($authenticatedUser);
     }
     JsonResponse::error('The requested API endpoint was not found.', 404);
 } catch (HttpException $exception) {

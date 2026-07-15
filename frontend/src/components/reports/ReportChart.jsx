@@ -1,4 +1,85 @@
-import {money} from "./reportFormat";
-function ReportChart({rows=[]}){const data=rows.slice(-18);if(data.length===0)return null;const valueOf=row=>Number(row.net_sales??row.total??row.gross_amount??row.estimated_stock_value??row.quantity_sold??row.quantity??row.transaction_count??0);const secondOf=row=>Number(row.expenses??row.refunded_amount??0);const max=Math.max(1,...data.flatMap(row=>[valueOf(row),secondOf(row)]));return <section className="premium-surface rounded-xl p-5"><div><h3 className="text-base font-extrabold text-slate-900">Report trend</h3><p className="mt-1 text-xs text-slate-500">Backend-calculated values for the selected period.</p></div><div className="mt-5 flex h-48 items-end gap-2 border-b border-slate-200 pl-1">{data.map((row)=>{const primary=valueOf(row),secondary=secondOf(row),label=String(row.label??row.period_key??row.product_name??row.category_name??row.payment_method??row.transaction_type??row.stock_status??JSON.stringify(row));return <div key={label} className="group relative flex h-full min-w-0 flex-1 items-end justify-center gap-0.5" title={`${label}: ${money(primary)}`}><span className="w-full max-w-6 rounded-t bg-blue-500 transition group-hover:bg-blue-600" style={{height:`${Math.max(primary?4:0,primary/max*100)}%`}}/>{secondary>0&&<span className="w-full max-w-3 rounded-t bg-amber-400" style={{height:`${Math.max(4,secondary/max*100)}%`}}/>}<span className="absolute top-full mt-2 max-w-16 truncate text-[8px] text-slate-400">{label}</span></div>})}</div><div className="mt-7 flex gap-4 text-[10px] font-bold text-slate-500"><span className="flex items-center gap-1.5"><i className="size-2 rounded-sm bg-blue-500"/>Primary value</span>{data.some(row=>secondOf(row)>0)&&<span className="flex items-center gap-1.5"><i className="size-2 rounded-sm bg-amber-400"/>Expenses / refunds</span>}</div></section>}
+import { money } from "./reportFormat";
+function ReportChart({ rows = [] }) {
+  const data = rows.slice(-18);
+  if (data.length === 0) return null;
+  const valueOf = (row) =>
+    Number(
+      row.net_sales ??
+        row.total ??
+        row.gross_amount ??
+        row.estimated_stock_value ??
+        row.quantity_sold ??
+        row.quantity ??
+        row.transaction_count ??
+        0,
+    );
+  const secondOf = (row) => Number(row.expenses ?? row.refunded_amount ?? 0);
+  const max = Math.max(
+    1,
+    ...data.flatMap((row) => [valueOf(row), secondOf(row)]),
+  );
+  return (
+    <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+      <div>
+        <h3 className="text-base font-extrabold text-slate-900">
+          Report trend
+        </h3>
+        <p className="mt-1 text-xs text-slate-500">
+          Backend-calculated values for the selected period.
+        </p>
+      </div>
+      <div className="mt-5 flex h-48 items-end gap-2 border-b border-slate-200 pl-1">
+        {data.map((row) => {
+          const primary = valueOf(row),
+            secondary = secondOf(row),
+            label = String(
+              row.label ??
+                row.period_key ??
+                row.product_name ??
+                row.category_name ??
+                row.payment_method ??
+                row.transaction_type ??
+                row.stock_status ??
+                JSON.stringify(row),
+            );
+          return (
+            <div
+              key={label}
+              className="group relative flex h-full min-w-0 flex-1 items-end justify-center gap-0.5"
+              title={`${label}: ${money(primary)}`}
+            >
+              <span
+                className="w-full max-w-6 rounded-t bg-blue-500 transition group-hover:bg-blue-600"
+                style={{
+                  height: `${Math.max(primary ? 4 : 0, (primary / max) * 100)}%`,
+                }}
+              />
+              {secondary > 0 && (
+                <span
+                  className="w-full max-w-3 rounded-t bg-amber-400"
+                  style={{ height: `${Math.max(4, (secondary / max) * 100)}%` }}
+                />
+              )}
+              <span className="absolute top-full mt-2 max-w-16 truncate text-[8px] text-slate-400">
+                {label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-7 flex gap-4 text-[10px] font-bold text-slate-500">
+        <span className="flex items-center gap-1.5">
+          <i className="size-2 rounded-sm bg-blue-500" />
+          Primary value
+        </span>
+        {data.some((row) => secondOf(row) > 0) && (
+          <span className="flex items-center gap-1.5">
+            <i className="size-2 rounded-sm bg-amber-400" />
+            Expenses / refunds
+          </span>
+        )}
+      </div>
+    </section>
+  );
+}
 export default ReportChart;
-

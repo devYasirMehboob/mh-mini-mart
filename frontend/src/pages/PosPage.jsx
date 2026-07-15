@@ -14,6 +14,7 @@ import TotalsPanel from "../components/pos/TotalsPanel";
 import ReceiptPreview from "../components/sales/ReceiptPreview";
 import useCart from "../hooks/useCart";
 import useHeldSales from "../hooks/useHeldSales";
+import useScanQueue from "../hooks/useScanQueue";
 import useSettings from "../hooks/useSettings";
 import { calculateSaleTotals } from "../utils/calculateSaleTotals";
 
@@ -60,7 +61,7 @@ function PosPage() {
   const [category, setCategory] = useState("");
   const [page, setPage] = useState(1);
   const [barcode, setBarcode] = useState("");
-  const [scanBusy, setScanBusy] = useState(false);
+  const scanQueue = useScanQueue(notify);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [retryKey, setRetryKey] = useState(0);
@@ -145,19 +146,9 @@ function PosPage() {
 
   async function scan(event) {
     event.preventDefault();
-    const value = barcode.trim();
-    if (!value || scanBusy) return;
-    setScanBusy(true);
-    try {
-      const data = await getPosProducts({ barcode: value });
-      add(data.products[0]);
-    } catch (failure) {
-      notify(apiError(failure, `No sellable product was found for barcode ${value}.`), "error");
-    } finally {
-      setBarcode("");
-      setScanBusy(false);
-      window.setTimeout(() => barcodeRef.current?.focus(), 0);
-    }
+    scanQueue.enqueue(barcode);
+    setBarcode("");
+    window.setTimeout(() => barcodeRef.current?.focus(), 0);
   }
 
   function changeDiscount(value) {
@@ -301,7 +292,7 @@ function PosPage() {
           <div className="premium-surface rounded-xl p-4 sm:p-5"><div className="mb-4 flex items-center justify-between gap-3"><div><h3 className="text-base font-extrabold text-slate-900">Products</h3><p className="mt-1 text-xs text-slate-500">Choose an item or scan its barcode.</p></div><span className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-[10px] font-extrabold text-slate-500">{pagination.total} available</span></div>
             <div className="grid gap-3 2xl:grid-cols-[1fr_280px]">
               <label className="relative"><Icon name="search" className="absolute left-3.5 top-3.5 size-4 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50" placeholder="Search name, product code, or barcode" /></label>
-              {barcodeSettings.enabled !== false && <form className="flex gap-2" onSubmit={scan}><input ref={barcodeRef} value={barcode} onChange={(event) => setBarcode(event.target.value)} className="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50" placeholder="Scan barcode + Enter" aria-label="Barcode" autoComplete="off" /><button className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60" disabled={scanBusy} type="submit"><Icon name="barcode" className="mr-1.5 size-4" />{scanBusy ? "Checking" : "Add"}</button></form>}
+              {barcodeSettings.enabled !== false && <form className="flex gap-2" onSubmit={scan}><input ref={barcodeRef} value={barcode} onChange={(event) => setBarcode(event.target.value)} className="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50" placeholder="Scan barcode + Enter" aria-label="Barcode" autoComplete="off" /><button className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60" disabled={scanQueue.isProcessing} type="submit"><Icon name="barcode" className="mr-1.5 size-4" />{scanQueue.isProcessing ? "Checking" : "Add"}</button></form>}
             </div>
             <div className="no-scrollbar mt-4 flex gap-2 overflow-x-auto"><Filter active={!category} label="All products" onClick={() => { setCategory(""); setPage(1); }} />{categories.map((item) => <Filter key={item.id} active={category === String(item.id)} label={item.name} onClick={() => { setCategory(String(item.id)); setPage(1); }} />)}</div>
           </div>

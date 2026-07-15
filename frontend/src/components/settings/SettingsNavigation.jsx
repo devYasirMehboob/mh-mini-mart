@@ -1,4 +1,50 @@
 import Icon from "../Icon";
-function SettingsNavigation({sections,active,onSelect,dirty}){
- return <nav className="space-y-1" aria-label="Settings sections">{sections.map(section=><button key={section.key} type="button" onClick={()=>onSelect(section.key)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition ${active===section.key?"bg-blue-600 text-white shadow-sm":"text-slate-600 hover:bg-slate-50"}`}><span className={`grid size-9 shrink-0 place-items-center rounded-lg ${active===section.key?"bg-white/15":"bg-slate-100 text-slate-400"}`}><Icon name="settings" className="size-4"/></span><span className="min-w-0 flex-1"><strong className="block truncate text-xs">{section.label}</strong><small className={`mt-0.5 block truncate text-[10px] ${active===section.key?"text-blue-100":"text-slate-400"}`}>{section.description}</small></span>{dirty===section.key&&<span className="size-2 rounded-full bg-amber-400"/>}</button>)}</nav>;
-}export default SettingsNavigation;
+
+function SettingsNavigation({ sections, active, onSelect, dirty }) {
+  return (
+    <nav
+      className="no-scrollbar space-y-1.5 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto lg:pr-2"
+      aria-label="Settings sections"
+    >
+      {sections.map((section) => (
+        <button
+          key={section.key}
+          type="button"
+          onClick={() => onSelect(section.key)}
+          className={`flex w-full items-center gap-3.5 rounded-xl px-3.5 py-3 text-left transition-all ${
+            active === section.key
+              ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
+              : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+          }`}
+        >
+          <span
+            className={`grid size-9 shrink-0 place-items-center rounded-lg ${
+              active === section.key
+                ? "bg-white/20 text-white"
+                : "bg-white shadow-sm border border-slate-100 text-slate-400"
+            }`}
+          >
+            <Icon name="settings" className="size-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <strong className="block truncate text-[13px] font-bold">
+              {section.label}
+            </strong>
+            <small
+              className={`mt-0.5 block truncate text-[10px] ${
+                active === section.key ? "text-blue-100" : "text-slate-500"
+              }`}
+            >
+              {section.description}
+            </small>
+          </span>
+          {dirty === section.key && (
+            <span className="size-2 rounded-full bg-amber-400" />
+          )}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+export default SettingsNavigation;

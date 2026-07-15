@@ -11,6 +11,7 @@ use App\Repositories\ProductRepository;
 use App\Repositories\StockTransactionRepository;
 use App\Validators\ProductValidator;
 use Throwable;
+use App\Services\BarcodeService;
 
 final class ProductService
 {
@@ -20,7 +21,8 @@ final class ProductService
         private readonly StockTransactionRepository $stockTransactions,
         private readonly ActivityLogRepository $activity,
         private readonly ProductValidator $validator,
-        private readonly ProductImageService $images
+        private readonly ProductImageService $images,
+        private readonly BarcodeService $barcodes
     ) {
     }
 
@@ -183,6 +185,44 @@ final class ProductService
         $this->images->delete($product['image']);
         $this->activity->log($userId, 'product.deleted', 'Product ' . $product['name'] . ' deleted.');
     }
+
+    public function generateBarcode(int $id, int $userId): array
+    {
+        $product = $this->findOrFail($id);
+        if ($product['barcode'] !== null) {
+            throw new HttpException('This product already has a barcode.', 409);
+        }
+        $barcode = $this->barcodes->generateUniqueBarcode();
+        $this->products->updateBarcodeData($id, $barcode, 'C128', 'generated');
+        $this->activity->log($userId, 'barcode.generated', 'Generated barcode ' . $barcode . ' for product ' . $product['name'] . '.');
+        return $this->findOrFail($id);
+    }
+
+    public function setBarcode(int $id, string $barcode, int $userId): array
+    {
+        $product = $this->findOrFail($id);
+        $barcode = trim($barcode);
+        if ($barcode === '') {
+            $this->products->updateBarcodeData($id, null, null, null);
+            $this->activity->log($userId, 'barcode.removed', 'Removed barcode for product ' . $product['name'] . '.');
+            return $this->findOrFail($id);
+        }
+
+        if ($product['barcode'] !== $barcode && $this->products->barcodeExists($barcode, $id)) {
+            throw new HttpException('A product with this barcode already exists.', 409, ['barcode' => ['Barcode must be unique.']]);
+        }
+
+        $this->products->updateBarcodeData($id, $barcode, 'C128', 'manual');
+        $this->activity->log($userId, 'barcode.updated', 'Assigned barcode ' . $barcode . ' to product ' . $product['name'] . '.');
+        return $this->findOrFail($id);
+    }
+
+    public function recordBarcodePrint(array $ids, int $userId): void
+    {
+        $this->products->recordBarcodePrint($ids);
+        $this->activity->log($userId, 'labels.printed', 'Printed labels for ' . count($ids) . ' product(s).');
+    }
+
 
     private function findOrFail(int $id): array
     {

@@ -35,6 +35,7 @@ function ProductForm({
   onRemoveImage,
   onSubmit,
   onCancel,
+  onGenerateBarcode,
 }) {
   return (
     <form onSubmit={onSubmit} noValidate>
@@ -57,7 +58,14 @@ function ProductForm({
               <FieldError message={errors.product_code} />
             </div>
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="product-barcode">Barcode</label>
+              <label className="mb-2 flex items-center justify-between text-sm font-semibold text-slate-700" htmlFor="product-barcode">
+                <span>Barcode</span>
+                {isEdit && !values.barcode && onGenerateBarcode && (
+                  <button type="button" onClick={onGenerateBarcode} disabled={isSubmitting} className="text-xs text-blue-600 hover:underline font-bold">
+                    Generate
+                  </button>
+                )}
+              </label>
               <input className={inputClasses(errors.barcode)} id="product-barcode" name="barcode" value={values.barcode} onChange={onChange} disabled={isSubmitting} maxLength="100" />
               <FieldError message={errors.barcode} />
             </div>

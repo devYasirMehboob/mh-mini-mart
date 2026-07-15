@@ -31,6 +31,10 @@ CREATE TABLE IF NOT EXISTS products (
     name VARCHAR(150) NOT NULL,
     product_code VARCHAR(60) NOT NULL,
     barcode VARCHAR(100) NULL,
+    barcode_type VARCHAR(20) NULL,
+    barcode_source VARCHAR(20) NULL,
+    barcode_printed_at DATETIME NULL,
+    barcode_print_count INT UNSIGNED NOT NULL DEFAULT 0,
     purchase_cost DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
     selling_price DECIMAL(12, 2) NOT NULL,
     quantity DECIMAL(12, 3) NOT NULL DEFAULT 0.000,
@@ -352,7 +356,9 @@ INSERT INTO permissions (name,permission_key,module,description) VALUES
 ('Manage settings','settings.manage','Settings','Change shop settings.'),
 ('Create backups','backups.create','Backups','Create local backups.'),
 ('Restore backups','backups.restore','Backups','Restore a backup.'),
-('View activity logs','activity_logs.view','Activity Logs','View security and user activity.')
+('View activity logs','activity_logs.view','Activity Logs','View security and user activity.'),
+('Generate barcodes','barcodes.generate','Products','Generate or manually assign barcodes.'),
+('Print labels','labels.print','Products','Print product barcode labels.')
 ON DUPLICATE KEY UPDATE name=VALUES(name),module=VALUES(module),description=VALUES(description);
 
 INSERT IGNORE INTO role_permissions (role_id,permission_id)
@@ -360,7 +366,7 @@ SELECT r.id,p.id FROM roles r CROSS JOIN permissions p WHERE r.slug='admin';
 
 INSERT IGNORE INTO role_permissions (role_id,permission_id)
 SELECT r.id,p.id FROM roles r JOIN permissions p ON p.permission_key IN
-('pos.access','sales.view','sales.complete','sales.hold','sales.reprint') WHERE r.slug='cashier';
+('pos.access','sales.view','sales.complete','sales.hold','sales.reprint','labels.print') WHERE r.slug='cashier';
 CREATE TABLE IF NOT EXISTS settings (
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  setting_group VARCHAR(40) NOT NULL,
@@ -382,6 +388,7 @@ INSERT IGNORE INTO settings (setting_group,setting_key,setting_value,value_type,
 ('discounts','enabled','1','boolean',1),('discounts','default_type','fixed','string',1),('discounts','default_value','0','decimal',1),('discounts','maximum_cashier_discount','10','decimal',1),('discounts','allow_cashier_discounts','1','boolean',1),('discounts','require_admin_above_limit','1','boolean',1),
 ('inventory','global_tracking_enabled','1','boolean',1),('inventory','default_minimum_stock','5','decimal',1),('inventory','allow_negative_stock','0','boolean',1),('inventory','low_stock_alerts','1','boolean',1),('inventory','out_of_stock_alerts','1','boolean',1),('inventory','wastage_tracking','1','boolean',1),('inventory','expiry_tracking','0','boolean',1),
 ('barcode','enabled','1','boolean',1),('barcode','auto_focus','1','boolean',1),('barcode','auto_add','1','boolean',1),('barcode','input_timeout_ms','250','integer',1),
+('label','default_width','40','integer',1),('label','default_height','30','integer',1),('label','labels_per_row','1','integer',1),('label','gap_x','2','decimal',1),('label','gap_y','2','decimal',1),('label','print_method','browser','string',0),
 ('customers','enabled','1','boolean',1),('customers','use_walk_in','1','boolean',1),('customers','require_phone','0','boolean',1),('customers','save_optional_information','1','boolean',1),
 ('receipt','paper_width','80mm','string',1),('receipt','show_logo','1','boolean',1),('receipt','show_customer','1','boolean',1),('receipt','show_cashier','1','boolean',1),('receipt','show_tax','1','boolean',1),('receipt','show_discount','1','boolean',1),('receipt','show_payment_method','1','boolean',1),('receipt','show_change','1','boolean',1),('receipt','auto_print','0','boolean',1),
 ('printer','printer_name','','string',0),('printer','printing_method','browser','string',0),('printer','direct_printing_enabled','0','boolean',0),('printer','copies','1','integer',0),

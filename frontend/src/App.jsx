@@ -11,6 +11,7 @@ import PosPage from "./pages/PosPage";
 import ProductsPage from "./pages/ProductsPage";
 import ReportsPage from "./pages/ReportsPage";
 import SalesPage from "./pages/SalesPage";
+import BarcodeLabelsPage from "./pages/BarcodeLabelsPage";
 import UsersPage from "./pages/UsersPage";
 import SettingsPage from "./pages/SettingsPage";
 import SuppliersPage from "./pages/SuppliersPage";
@@ -34,6 +35,7 @@ function App() {
         <Route path="sales" element={permitted("sales.view", <SalesPage />)} />
         <Route path="categories" element={permitted("categories.manage", <CategoriesPage />)} />
         <Route path="products" element={permitted("products.view", <ProductsPage />)} />
+        <Route path="products/labels" element={permitted("labels.print", <BarcodeLabelsPage />)} />
         <Route path="inventory" element={permitted("inventory.view", <InventoryPage />)} />
         <Route path="suppliers" element={permitted("suppliers.view", <SuppliersPage />)} />
         <Route path="purchases" element={permitted("purchases.view", <PurchasesPage />)} />
