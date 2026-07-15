@@ -61,11 +61,13 @@ function PosPage() {
   const [category, setCategory] = useState("");
   const [page, setPage] = useState(1);
   const [barcode, setBarcode] = useState("");
+  const [toast, setToast] = useState(null);
+  const dismissToast = useCallback(() => setToast(null), []);
+  const notify = useCallback((message, type = "info") => setToast({ message, type, id: Date.now() }), []);
   const scanQueue = useScanQueue(notify);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [retryKey, setRetryKey] = useState(0);
-  const [toast, setToast] = useState(null);
   const [discountType, setDiscountType] = useState(initialDraft.discountType);
   const [discountValue, setDiscountValue] = useState(initialDraft.discountValue);
   const [payment, setPayment] = useState(initialDraft.payment);
@@ -82,8 +84,6 @@ function PosPage() {
   const [receiptLoading, setReceiptLoading] = useState(false);
   const [stockRefresh, setStockRefresh] = useState(0);
   const totals = useMemo(() => calculateSaleTotals(cart.items, discountType, discountValue, taxSettings.enabled ? taxSettings.percentage : 0, taxSettings.calculation_mode), [cart.items, discountType, discountValue, taxSettings.enabled, taxSettings.percentage, taxSettings.calculation_mode]);
-  const dismissToast = useCallback(() => setToast(null), []);
-  const notify = useCallback((message, type = "info") => setToast({ message, type, id: Date.now() }), []);
 
   useEffect(() => {
     document.title = "POS | MH Mini Mart";
