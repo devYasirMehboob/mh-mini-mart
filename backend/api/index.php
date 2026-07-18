@@ -725,7 +725,7 @@ if (str_starts_with($path, '/inventory')) {
 } catch (PDOException $exception) {
     error_log('Database error: ' . $exception->getMessage());
     JsonResponse::error(
-        'The database is currently unavailable. Please check the local server and try again.',
+        'DB Error: ' . $exception->getMessage(),
         503
     );
 } catch (Throwable $exception) {
