@@ -135,7 +135,7 @@ function AppLayout() {
           <p className="mt-0.5 hidden text-[11px] font-medium text-slate-400 sm:block">{current.description}</p>
         </div>
         <div className="flex items-center gap-3">
-          <NotificationBell />
+          {can("notifications.view") && <NotificationBell />}
           <div className="hidden text-right sm:block">
             <p className="text-xs font-extrabold text-slate-800">{user.name}</p>
             <p className="mt-0.5 text-[10px] capitalize text-slate-400">{user.role} access</p>
