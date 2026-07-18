@@ -20,6 +20,7 @@ import useGlobalBarcodeScanner from "../hooks/useGlobalBarcodeScanner";
 import useHeldSales from "../hooks/useHeldSales";
 import useScanQueue from "../hooks/useScanQueue";
 import useSettings from "../hooks/useSettings";
+import usePermissions from "../hooks/usePermissions";
 import { calculateSaleTotals } from "../utils/calculateSaleTotals";
 
 const DRAFT_KEY = "mh-mini-mart-pos-draft-v2";
@@ -66,8 +67,26 @@ function PosPage() {
   const [barcode, setBarcode] = useState("");
   const alert = useAlert();
   const confirmDialog = useConfirmation();
+  const { can } = usePermissions();
   const notify = useCallback((message, type = "info") => alert[type === "error" ? "error" : "success"](message), [alert]);
-  const scanQueue = useScanQueue(cart, notify);
+
+  const onBarcodeNotFound = useCallback(async (scannedBarcode) => {
+    if (!can("products.create")) {
+      notify(`No product found for barcode "${scannedBarcode}".`, "error");
+      return;
+    }
+    const confirmed = await confirmDialog({
+      title: "Product not found",
+      description: `Barcode "${scannedBarcode}" is not registered. Would you like to add it as a new product?`,
+      confirmText: "Add product",
+      tone: "info"
+    });
+    if (confirmed) {
+      navigate("/products", { state: { newBarcode: scannedBarcode } });
+    }
+  }, [can, confirmDialog, navigate, notify]);
+
+  const scanQueue = useScanQueue(cart, notify, onBarcodeNotFound);
   
   useGlobalBarcodeScanner((scannedBarcode) => {
     scanQueue.enqueue(scannedBarcode);

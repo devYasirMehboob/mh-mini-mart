@@ -34,7 +34,7 @@ function ReceiptPreview({
       
       try {
         setIsPrinting(true);
-        const html = document.querySelector(".receipt-print-root").outerHTML;
+        const html = document.getElementById("printable-receipt").outerHTML;
       const fullHtml = `<html><head><style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: monospace; background: white; color: black; font-size: 11px; }
@@ -73,17 +73,17 @@ function ReceiptPreview({
 
   const totals = receipt
     ? [
-        ["Subtotal", receipt.sale.subtotal],
+        ["کل رقم", receipt.sale.subtotal],
         ...(options.show_discount !== false
-          ? [["Discount", receipt.sale.discount_amount]]
+          ? [["چھوٹ", receipt.sale.discount_amount]]
           : []),
         ...(options.show_tax !== false && options.tax_show_on_receipt !== false
-          ? [[options.tax_name || "Tax", receipt.sale.tax_amount]]
+          ? [[options.tax_name || "ٹیکس", receipt.sale.tax_amount]]
           : []),
-        ["Grand total", receipt.sale.grand_total],
-        ["Received", receipt.sale.amount_received],
+        ["مجموعی رقم", receipt.sale.grand_total],
+        ["وصول شدہ", receipt.sale.amount_received],
         ...(options.show_change !== false
-          ? [["Change", receipt.sale.change_returned]]
+          ? [["بقایا جات", receipt.sale.change_returned]]
           : []),
       ]
     : [];
@@ -102,39 +102,47 @@ function ReceiptPreview({
         receipt && (
           <div className="p-5">
             <article
-              className="receipt-print-root mx-auto w-full bg-white p-4 font-mono text-[11px] text-black"
-              style={{
-                maxWidth: options.paper_width === "58mm" ? "58mm" : "80mm",
-              }}
+              id="printable-receipt"
+              dir="rtl"
+              className="receipt-content mx-auto max-w-[300px] bg-white p-4 font-mono text-sm leading-tight text-black print:p-0"
             >
+              <style>{`
+                @media print {
+                  @page { margin: 0; size: ${options.paper_width === "58mm" ? "58mm auto" : "80mm auto"}; }
+                  body { margin: 0; padding: 0; }
+                  .no-print { display: none !important; }
+                  .receipt-content { width: 100% !important; max-width: none !important; }
+                }
+              `}</style>
+
               <header className="text-center">
-                {options.show_logo !== false && logo && (
+                {options.show_logo !== false && shop.logo && (
                   <img
-                    src={logo}
-                    alt=""
-                    className="mx-auto mb-2 max-h-14 max-w-24 object-contain"
+                    src={shopImageUrl(shop.logo)}
+                    alt="Logo"
+                    className="mx-auto mb-2 h-12 w-auto object-contain grayscale"
                   />
                 )}
-                <h2 className="text-lg font-extrabold">{shop.name}</h2>
+                <h2 className="text-lg font-black">{shop.shop_name}</h2>
                 {shop.address && <p>{shop.address}</p>}
                 {shop.phone && <p>{shop.phone}</p>}
                 {shop.registration_number && <p>{shop.registration_number}</p>}
                 <div className="my-3 border-t border-dashed border-black" />
-                <p className="font-bold">{receipt.sale.invoice_number}</p>
+                <p className="font-bold">رسید نمبر: {receipt.sale.invoice_number}</p>
                 <p>{formatDateTime(receipt.sale.created_at)}</p>
                 {options.show_cashier !== false && (
                   <p>
-                    Cashier: {receipt.sale.cashier_name} (
+                    کیشیئر: {receipt.sale.cashier_name} (
                     {receipt.sale.cashier_role})
                   </p>
                 )}
                 {options.show_customer !== false &&
                   receipt.sale.customer_name && (
-                    <p>Customer: {receipt.sale.customer_name}</p>
+                    <p>کسٹمر: {receipt.sale.customer_name}</p>
                   )}
                 {options.show_customer !== false &&
                   receipt.sale.customer_phone && (
-                    <p>Phone: {receipt.sale.customer_phone}</p>
+                    <p>فون: {receipt.sale.customer_phone}</p>
                   )}
               </header>
 
@@ -145,27 +153,27 @@ function ReceiptPreview({
               )}
 
               <div className="my-3 border-t border-dashed border-black" />
-              <table className="w-full">
+              <table className="w-full text-right">
                 <thead>
                   <tr>
-                    <th className="pb-1 text-left">Item</th>
-                    <th className="pb-1 text-right">Qty</th>
-                    <th className="pb-1 text-right">Total</th>
+                    <th className="pb-1 text-right">آئٹم</th>
+                    <th className="pb-1 text-left">تعداد</th>
+                    <th className="pb-1 text-left">قیمت</th>
                   </tr>
                 </thead>
                 <tbody>
                   {receipt.sale.items.map((item) => (
                     <tr key={item.id}>
-                      <td className="py-1 pr-2">
+                      <td className="py-1 pl-2">
                         {item.product_name}
                         <small className="block">
-                          {formatCurrency(item.unit_price)} each
+                          فی کس {formatCurrency(item.unit_price)}
                         </small>
                       </td>
-                      <td className="py-1 text-right align-top">
+                      <td className="py-1 text-left align-top">
                         {Number(item.quantity)}
                       </td>
-                      <td className="py-1 text-right align-top">
+                      <td className="py-1 text-left align-top">
                         {formatCurrency(item.line_total)}
                       </td>
                     </tr>
@@ -188,7 +196,7 @@ function ReceiptPreview({
 
               {options.show_payment_method !== false && (
                 <p className="mt-2 capitalize">
-                  Payment: {receipt.sale.payment_method.replaceAll("_", " ")}
+                  ادائیگی کا طریقہ: {receipt.sale.payment_method === "cash" ? "نقد" : receipt.sale.payment_method.replaceAll("_", " ")}
                 </p>
               )}
 

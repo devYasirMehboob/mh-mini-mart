@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getCategories } from "../api/categoriesApi";
 import {
   createProduct,
@@ -55,6 +55,8 @@ function ProductsPage() {
   const canUpdate = can("products.update");
   const canDelete = can("products.delete");
   const canViewCosts = can("products.costs.view");
+  const location = useLocation();
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [filters, setFilters] = useState(defaultFilters);
@@ -105,10 +107,18 @@ function ProductsPage() {
     initialize();
   }, [loadProducts]);
 
-  function openCreateForm() {
+  useEffect(() => {
+    if (location.state?.newBarcode && canCreate && categories.length > 0) {
+      openCreateForm(location.state.newBarcode);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, canCreate, categories.length, navigate]);
+
+  function openCreateForm(initialBarcode = "") {
     setEditingProduct(null);
     setFormValues({
       ...emptyForm,
+      barcode: typeof initialBarcode === "string" ? initialBarcode : "",
       product_code: `PRD-${Math.floor(100000 + Math.random() * 900000)}`
     });
     setFormErrors({});

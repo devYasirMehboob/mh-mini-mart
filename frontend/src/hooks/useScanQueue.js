@@ -7,7 +7,7 @@ import { getPosProducts } from "../api/posApi";
  * and adding the product to the cart. Uses a simple ref-based queue to
  * avoid React state complexity causing dropped scans.
  */
-export default function useScanQueue(cart, notify) {
+export default function useScanQueue(cart, notify, onBarcodeNotFound = null) {
   const cartRef = useRef(cart);
   cartRef.current = cart;
 
@@ -31,10 +31,14 @@ export default function useScanQueue(cart, notify) {
           }
         }
       } catch (failure) {
-        const msg =
-          failure.response?.data?.message ||
-          `No product found for barcode "${barcode}".`;
-        notifyRef.current(msg, "error");
+        if (failure.response?.status === 404 && onBarcodeNotFound) {
+          onBarcodeNotFound(barcode);
+        } else {
+          const msg =
+            failure.response?.data?.message ||
+            `No product found for barcode "${barcode}".`;
+          notifyRef.current(msg, "error");
+        }
       } finally {
         processingRef.current = false;
       }
