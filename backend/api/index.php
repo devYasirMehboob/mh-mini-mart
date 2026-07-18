@@ -262,7 +262,7 @@ try {
         new StockTransactionRepository($database),
         $activityRepository,
         new ProductValidator(),
-        new ProductImageService(__DIR__ . '/../uploads/products'),
+        new ProductImageService(__DIR__ . '/../uploads', 'uploads'),
         $barcodeService
     );
 
