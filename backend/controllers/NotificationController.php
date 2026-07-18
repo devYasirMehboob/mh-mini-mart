@@ -46,7 +46,7 @@ final class NotificationController
 
     public function recent(array $user): void
     {
-        $limit = max(1, min(20, (int) $this->request->get('limit', 5)));
+        $limit = max(1, min(20, (int) ($this->request->query()['limit'] ?? 5)));
         $recent = $this->notifications->getRecentForUser($user['id'], $limit);
         JsonResponse::success('Recent notifications retrieved.', ['notifications' => $recent]);
     }

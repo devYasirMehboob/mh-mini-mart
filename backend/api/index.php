@@ -730,7 +730,7 @@ if (str_starts_with($path, '/inventory')) {
     );
 } catch (Throwable $exception) {
     error_log('Unexpected API error: ' . $exception->getMessage());
-    JsonResponse::error('The request could not be completed.', 500);
+    JsonResponse::error('Server Error: ' . $exception->getMessage(), 500);
 }
 
 
