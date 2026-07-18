@@ -68,6 +68,13 @@ final class ProductService
     public function create(array $input, int $userId, bool $canViewCosts): array
     {
         $data = $this->validator->validateDetails($input);
+        
+        $barcodeGenerated = false;
+        if (empty($data['barcode'])) {
+            $data['barcode'] = $this->barcodes->generateUniqueBarcode();
+            $barcodeGenerated = true;
+        }
+
         $this->validateRelationsAndUniqueness($data);
 
         if (!$canViewCosts) {
@@ -85,6 +92,13 @@ final class ProductService
 
         try {
             $product = $this->products->create($data);
+            
+            if ($barcodeGenerated) {
+                $this->products->updateBarcodeData((int) $product['id'], $data['barcode'], 'C128', 'generated');
+                $product['barcode_type'] = 'C128';
+                $product['barcode_source'] = 'generated';
+            }
+
             $quantity = $this->toMilli((string) $product['quantity']);
 
             if ((int) $product['track_stock'] === 1 && $quantity > 0) {
@@ -181,6 +195,7 @@ final class ProductService
             throw new HttpException('This product has stock history and cannot be deleted. Deactivate it instead.', 409);
         }
 
+        $this->stockTransactions->deleteByProduct($id);
         $this->products->delete($id);
         $this->images->delete($product['image']);
         $this->activity->log($userId, 'product.deleted', 'Product ' . $product['name'] . ' deleted.');

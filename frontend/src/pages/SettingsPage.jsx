@@ -5,8 +5,12 @@ import {
   updateSettings,
   uploadShopLogo,
 } from "../api/settingsApi";
-import AlertMessage from "../components/AlertMessage";
-import LoadingState from "../components/LoadingState";
+import useAlert from "../hooks/useAlert";
+import useConfirmation from "../hooks/useConfirmation";
+import normalizeApiError from "../utils/normalizeApiError";
+import PageErrorState from "../components/feedback/PageErrorState";
+import LoadingState from "../components/feedback/LoadingState";
+import AlertBanner from "../components/feedback/AlertBanner";
 import Icon from "../components/Icon";
 import LogoUploader from "../components/settings/LogoUploader";
 import SettingsNavigation from "../components/settings/SettingsNavigation";
@@ -25,7 +29,10 @@ function SettingsPage() {
   const [active, setActive] = useState("shop");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [alert, setAlert] = useState(null);
+  const alert = useAlert();
+  const confirm = useConfirmation();
+  const [pageError, setPageError] = useState(null);
+  const [formError, setFormError] = useState(null);
   const [errors, setErrors] = useState({});
   const section = useMemo(
     () => settingsSections.find((item) => item.key === active),
@@ -37,16 +44,14 @@ function SettingsPage() {
       : false;
   async function load() {
     setLoading(true);
-    setAlert(null);
+    setPageError(null);
     try {
       const data = await getSettings();
       setSettings(data);
       setOriginal(clone(data));
     } catch (error) {
-      setAlert({
-        type: "error",
-        message: safe(error, "Settings could not be loaded."),
-      });
+      const normalized = normalizeApiError(error);
+      setPageError(normalized);
     } finally {
       setLoading(false);
     }
@@ -65,18 +70,23 @@ function SettingsPage() {
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
-  function select(next) {
-    if (
-      dirty &&
-      !window.confirm("Discard unsaved changes in this settings section?")
-    )
-      return;
+  async function select(next) {
+    if (dirty) {
+      const confirmed = await confirm({
+        title: "Unsaved Changes",
+        description: "Discard unsaved changes in this settings section?",
+        confirmText: "Discard",
+        tone: "warning"
+      });
+      if (!confirmed) return;
+    }
     if (dirty)
       setSettings((current) => ({
         ...current,
         [active]: clone(original[active]),
       }));
     setErrors({});
+    setFormError(null);
     setActive(next);
   }
   function change(key, value) {
@@ -100,18 +110,17 @@ function SettingsPage() {
   async function save() {
     setBusy(true);
     setErrors({});
+    setFormError(null);
     try {
       const response = await updateSettings({ [active]: settings[active] });
       setSettings(response.data);
       setOriginal(clone(response.data));
       await refreshSettings();
-      setAlert({ type: "success", message: response.message });
+      alert.success(response.message || "Settings updated successfully.");
     } catch (error) {
-      setErrors(error.response?.data?.errors || {});
-      setAlert({
-        type: "error",
-        message: safe(error, "Settings could not be saved."),
-      });
+      const normalized = normalizeApiError(error);
+      setErrors(normalized.fieldErrors);
+      setFormError(normalized.message);
     } finally {
       setBusy(false);
     }
@@ -124,18 +133,23 @@ function SettingsPage() {
       setSettings(fresh);
       setOriginal(clone(fresh));
       await refreshSettings();
-      setAlert({ type: "success", message: response.message });
+      await refreshSettings();
+      alert.success(response.message || "Shop logo updated successfully.");
     } catch (error) {
-      setAlert({
-        type: "error",
-        message: safe(error, "Shop logo could not be uploaded."),
-      });
+      const normalized = normalizeApiError(error);
+      alert.error(normalized.message);
     } finally {
       setBusy(false);
     }
   }
   async function remove() {
-    if (!window.confirm("Remove the current shop logo?")) return;
+    const confirmed = await confirm({
+      title: "Remove Logo",
+      description: "Are you sure you want to remove the current shop logo?",
+      confirmText: "Remove",
+      tone: "danger"
+    });
+    if (!confirmed) return;
     setBusy(true);
     try {
       const response = await removeShopLogo();
@@ -143,30 +157,18 @@ function SettingsPage() {
       setSettings(fresh);
       setOriginal(clone(fresh));
       await refreshSettings();
-      setAlert({ type: "success", message: response.message });
+      alert.success(response.message || "Logo removed successfully.");
     } catch (error) {
-      setAlert({
-        type: "error",
-        message: safe(error, "Shop logo could not be removed."),
-      });
+      const normalized = normalizeApiError(error);
+      alert.error(normalized.message);
     } finally {
       setBusy(false);
     }
   }
-  if (loading) return <LoadingState label="Loading system settings..." />;
-  if (!settings)
-    return (
-      <div className="space-y-4">
-        <AlertMessage type="error" message={alert?.message} />
-        <button
-          type="button"
-          onClick={load}
-          className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white"
-        >
-          Try again
-        </button>
-      </div>
-    );
+  if (loading) return <LoadingState message="Loading system settings..." />;
+  if (pageError) return <PageErrorState error={pageError} onRetry={load} />;
+  if (!settings) return <PageErrorState error={{ message: "Settings data is unavailable." }} onRetry={load} />;
+
   return (
     <div className="space-y-6">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -195,11 +197,9 @@ function SettingsPage() {
           Refresh
         </button>
       </header>
-      <AlertMessage
-        type={alert?.type}
-        message={alert?.message}
-        onDismiss={() => setAlert(null)}
-      />
+      {formError && <AlertBanner type="error" message={formError} />}
+      {dirty && !formError && <AlertBanner type="warning" message="You have unsaved changes in this section." />}
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
       {active === "shop" && (
         <LogoUploader
           shop={settings.shop}
@@ -232,6 +232,7 @@ function SettingsPage() {
             onSave={save}
           />
         </main>
+      </div>
       </div>
     </div>
   );

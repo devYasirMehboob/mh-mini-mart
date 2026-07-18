@@ -1,33 +1,83 @@
 /**
- * A hidden component that only shows up when printing.
- * Configured for A4 sheets with standard labels (e.g. 3x8 layout = 24 labels/sheet)
+ * Compact printable barcode labels.
+ * Labels are packed together while keeping enough quiet zone for scanner reads.
  */
 export default function PrintableLabelSheet({ labels, isQz = false }) {
   if (!labels || labels.length === 0) return null;
 
   return (
-    <div className={`${isQz ? "" : "hidden print:block"} font-sans text-black bg-white`}>
-      {/* We apply a CSS grid for standard 3-column A4 sticker sheets. */}
-      {/* Adjust gap and sizing to match specific physical label paper if needed. */}
-      <div className="grid grid-cols-3 gap-x-2 gap-y-4 p-4 text-center">
+    <div
+      className={`${isQz ? "" : "hidden print:block label-print-root"} font-sans text-black bg-white`}
+      style={{ background: "#fff", color: "#000" }}
+    >
+      <style>{`
+        @media print {
+          @page { margin: 4mm; size: auto; }
+          html, body { margin: 0; padding: 0; background: #fff; }
+          .label-print-root { display: block !important; }
+        }
+        .barcode-label-grid {
+          width: 100%;
+          display: grid;
+          grid-template-columns: repeat(5, 38mm);
+          grid-auto-rows: 20mm;
+          gap: 1.5mm 1.5mm;
+          align-items: start;
+          justify-content: start;
+          background: #fff;
+          color: #000;
+        }
+        .barcode-label-card {
+          width: 38mm;
+          height: 20mm;
+          padding: 1.5mm 2mm 1mm;
+          break-inside: avoid;
+          page-break-inside: avoid;
+          box-sizing: border-box;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          background: #fff;
+          color: #000;
+        }
+        .barcode-label-symbol {
+          width: 34mm;
+          height: 12mm;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+        }
+        .barcode-label-symbol svg {
+          width: 100% !important;
+          height: 100% !important;
+          display: block;
+          shape-rendering: crispEdges;
+        }
+        .barcode-label-digits {
+          margin-top: 0.8mm;
+          max-width: 34mm;
+          font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+          font-size: 7px;
+          line-height: 1.1;
+          letter-spacing: 1px;
+          text-align: center;
+          white-space: nowrap;
+          overflow: hidden;
+          color: #000;
+        }
+      `}</style>
+
+      <div className="barcode-label-grid">
         {labels.map((label, index) => (
-          <div key={index} className="flex flex-col items-center justify-center border border-dashed border-gray-300 p-2 break-inside-avoid h-[1.5in]">
-            {/* Store Name & Price */}
-            <div className="flex w-full justify-between px-1 text-xs font-bold mb-1">
-              <span className="truncate w-3/4 text-left">{label.product_name}</span>
-              <span className="w-1/4 text-right">${Number(label.price).toFixed(2)}</span>
-            </div>
-            
-            {/* SVG Barcode rendered inline via dangerouslySetInnerHTML */}
-            <div 
-              className="w-full flex-1 flex items-center justify-center overflow-hidden" 
-              dangerouslySetInnerHTML={{ __html: label.svg }} 
+          <div key={`${label.barcode}-${index}`} className="barcode-label-card">
+            <div
+              className="barcode-label-symbol"
+              dangerouslySetInnerHTML={{ __html: label.svg }}
             />
-            
-            {/* Barcode digits */}
-            <div className="text-[10px] font-mono tracking-widest mt-0.5">
-              {label.barcode}
-            </div>
+            <div className="barcode-label-digits">{label.barcode}</div>
           </div>
         ))}
       </div>

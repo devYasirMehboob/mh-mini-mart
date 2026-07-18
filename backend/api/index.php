@@ -24,6 +24,8 @@ use App\Controllers\PurchaseController;
 use App\Controllers\PurchaseReturnController;
 use App\Controllers\BarcodeController;
 use App\Controllers\LabelController;
+use App\Controllers\NotificationController;
+use App\Controllers\NotificationPreferenceController;
 use App\Http\HttpException;
 use App\Http\JsonResponse;
 use App\Http\Request;
@@ -54,6 +56,8 @@ use App\Repositories\PurchaseRepository;
 use App\Repositories\PurchaseItemRepository;
 use App\Repositories\PurchasePaymentRepository;
 use App\Repositories\PurchaseReturnRepository;
+use App\Repositories\NotificationRepository;
+use App\Repositories\NotificationPreferenceRepository;
 use App\Security\SessionManager;
 use App\Services\AuthService;
 use App\Services\DatabaseBackupService;
@@ -83,6 +87,12 @@ use App\Services\SupplierService;
 use App\Services\PurchaseService;
 use App\Services\PurchaseReturnService;
 use App\Services\PurchaseExportService;
+use App\Services\NotificationService;
+use App\Services\AlertEvaluationService;
+use App\Services\InventoryAlertService;
+use App\Services\SupplierAlertService;
+use App\Services\BackupAlertService;
+use App\Services\HeldSaleAlertService;
 use App\Validators\CategoryValidator;
 use App\Validators\ProductValidator;
 use App\Validators\InventoryValidator;
@@ -161,7 +171,28 @@ try {
         new DatabaseBackupService($database, $activityRepository, $configuration, __DIR__ . '/..'),
         $session
     );
+
+    $notificationRepository = new NotificationRepository($database);
+    $notificationPreferenceRepository = new NotificationPreferenceRepository($database);
+    $notificationService = new NotificationService($notificationRepository, $notificationPreferenceRepository, $userRepository, $configuration);
+    $inventoryAlertService = new InventoryAlertService($notificationService, new ProductRepository($database), $configuration);
+    $supplierAlertService = new SupplierAlertService($notificationService, new SupplierRepository($database), new PurchaseRepository($database), $configuration);
+    $backupAlertService = new BackupAlertService($notificationService, $activityRepository, $configuration);
+    $heldSaleAlertService = new HeldSaleAlertService($notificationService, new HeldSaleRepository($database), $configuration);
+    
+    $alertEvaluationService = new AlertEvaluationService(
+        $notificationService,
+        $inventoryAlertService,
+        $supplierAlertService,
+        $backupAlertService,
+        $heldSaleAlertService
+    );
+    
     $authorizationService = new AuthorizationService($userRepository, $permissionRepository, $session, $configuration);
+
+    $notificationController = new NotificationController($request, $notificationService, $session, $alertEvaluationService, $authorizationService);
+    $notificationPreferenceController = new NotificationPreferenceController($request, $notificationPreferenceRepository, $session);
+    
     $authMiddleware = new AuthMiddleware($session, $authorizationService);
     $authService = new AuthService($userRepository, $permissionRepository, $activityRepository, $session);
     $authController = new AuthController($request, $authService, $authMiddleware, $session);
@@ -375,6 +406,29 @@ $inventoryController = new InventoryController(
         if ($method === 'GET') $roleController->showPermissions((int) $matches[1]);
         if ($method === 'PUT') $roleController->updatePermissions((int) $matches[1], $authenticatedUser);
     }
+    
+    if (str_starts_with($path, '/notifications/preferences')) {
+        $authorizationService->requirePermission($authenticatedUser, 'notifications.preferences');
+        if ($method === 'GET') $notificationPreferenceController->index();
+        if ($method === 'PUT') $notificationPreferenceController->update($authenticatedUser);
+    } elseif (str_starts_with($path, '/notifications')) {
+        $authorizationService->requirePermission($authenticatedUser, 'notifications.view');
+        if ($method === 'GET' && $path === '/notifications') $notificationController->index($authenticatedUser);
+        if ($method === 'GET' && $path === '/notifications/recent') $notificationController->recent($authenticatedUser);
+        if ($method === 'GET' && $path === '/notifications/unread-count') $notificationController->unreadCount($authenticatedUser);
+        
+        if ($method === 'POST' && preg_match('#^/notifications/([1-9][0-9]*)/read$#', $path, $matches) === 1) $notificationController->read((int) $matches[1], $authenticatedUser);
+        if ($method === 'POST' && preg_match('#^/notifications/([1-9][0-9]*)/unread$#', $path, $matches) === 1) $notificationController->unread((int) $matches[1], $authenticatedUser);
+        if ($method === 'POST' && preg_match('#^/notifications/([1-9][0-9]*)/dismiss$#', $path, $matches) === 1) $notificationController->dismiss((int) $matches[1], $authenticatedUser);
+        if ($method === 'POST' && preg_match('#^/notifications/([1-9][0-9]*)/resolve$#', $path, $matches) === 1) $notificationController->resolve((int) $matches[1], $authenticatedUser);
+        
+        if ($method === 'POST' && $path === '/notifications/mark-all-read') $notificationController->markAllAsRead($authenticatedUser);
+        if ($method === 'POST' && $path === '/notifications/dismiss-all') $notificationController->dismissAll($authenticatedUser);
+        
+        if ($method === 'POST' && $path === '/notifications/announce') $notificationController->announce($authenticatedUser);
+        if ($method === 'POST' && $path === '/notifications/evaluate') $notificationController->evaluate($authenticatedUser);
+    }
+
     if (str_starts_with($path, '/backups')) {
         if ($method === 'POST' && preg_match('#^/backups/([^/]+)/restore$#', $path, $matches) === 1) {
             $authorizationService->requirePermission($authenticatedUser, 'backups.restore');

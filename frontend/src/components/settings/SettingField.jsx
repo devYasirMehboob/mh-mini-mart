@@ -1,3 +1,5 @@
+import InlineError from "../feedback/InlineError";
+
 function SettingField({ field, value, error, onChange, disabled }) {
   const [key, label, type, options] = field;
   const id = `setting-${key}`;
@@ -11,11 +13,7 @@ function SettingField({ field, value, error, onChange, disabled }) {
           <strong className="text-[13px] font-bold text-slate-900">
             {label}
           </strong>
-          {error && (
-            <small className="text-[11px] font-medium text-red-600">
-              {error}
-            </small>
-          )}
+          {error && <InlineError error={error} />}
         </span>
         <input
           id={id}
@@ -81,11 +79,7 @@ function SettingField({ field, value, error, onChange, disabled }) {
           }`}
         />
       )}
-      {error && (
-        <small className="ml-1 mt-0.5 text-[11px] font-bold text-red-600">
-          {error}
-        </small>
-      )}
+      {error && <InlineError error={error} />}
     </label>
   );
 }

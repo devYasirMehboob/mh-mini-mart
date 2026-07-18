@@ -4,6 +4,7 @@ import Icon from "../components/Icon";
 import useAuth from "../hooks/useAuth";
 import usePermissions from "../hooks/usePermissions";
 import useSettings from "../hooks/useSettings";
+import NotificationBell from "../components/notifications/NotificationBell";
 
 const groups = [
   {
@@ -29,6 +30,7 @@ const groups = [
       { label: "Reports", path: "/reports", icon: "reports", description: "Business insights", permission: "reports.view" },
       { label: "Users", path: "/users", icon: "users", description: "Staff access", permission: "users.manage" },
       { label: "Backups", path: "/backups", icon: "backups", description: "Protect your data", permission: "backups.create" },
+      { label: "Notifications", path: "/notifications", icon: "bell", description: "System alerts", permission: "notifications.view" },
       { label: "Settings", path: "/settings", icon: "settings", description: "Shop preferences", permission: "settings.manage" },
     ]
   },
@@ -133,6 +135,7 @@ function AppLayout() {
           <p className="mt-0.5 hidden text-[11px] font-medium text-slate-400 sm:block">{current.description}</p>
         </div>
         <div className="flex items-center gap-3">
+          <NotificationBell />
           <div className="hidden text-right sm:block">
             <p className="text-xs font-extrabold text-slate-800">{user.name}</p>
             <p className="mt-0.5 text-[10px] capitalize text-slate-400">{user.role} access</p>

@@ -11,8 +11,9 @@ import {
   updateProductStatus,
   generateProductBarcode,
 } from "../api/productsApi";
-import AlertMessage from "../components/AlertMessage";
-import ConfirmDialog from "../components/ConfirmDialog";
+import useAlert from "../hooks/useAlert";
+import useConfirmation from "../hooks/useConfirmation";
+import normalizeApiError from "../utils/normalizeApiError";
 import EmptyState from "../components/EmptyState";
 import Icon from "../components/Icon";
 import LoadingState from "../components/LoadingState";
@@ -46,18 +47,7 @@ const defaultFilters = {
   limit: 10,
 };
 
-function apiErrorMessage(error, fallback) {
-  if (!error.response) {
-    return "The local API could not be reached. Check that Apache and MySQL are running.";
-  }
-
-  return error.response.data?.message || fallback;
-}
-
-function validationErrors(error) {
-  const errors = error.response?.data?.errors || {};
-  return Object.fromEntries(Object.entries(errors).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value]));
-}
+// Global error normalization used instead
 
 function ProductsPage() {
   const { can } = usePermissions();
@@ -71,7 +61,8 @@ function ProductsPage() {
   const [appliedFilters, setAppliedFilters] = useState(defaultFilters);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, total_pages: 1 });
   const [isLoading, setIsLoading] = useState(true);
-  const [alert, setAlert] = useState(null);
+  const alert = useAlert();
+  const confirmDialog = useConfirmation();
   const [formMode, setFormMode] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
   const [detailsProduct, setDetailsProduct] = useState(null);
@@ -84,7 +75,6 @@ function ProductsPage() {
 
   const loadProducts = useCallback(async (nextFilters) => {
     setIsLoading(true);
-    setAlert(null);
 
     try {
       const data = await getProducts(nextFilters);
@@ -92,7 +82,7 @@ function ProductsPage() {
       setPagination(data.pagination);
       setAppliedFilters(nextFilters);
     } catch (error) {
-      setAlert({ type: "error", message: apiErrorMessage(error, "Unable to load products.") });
+      alert.error(normalizeApiError(error).message);
     } finally {
       setIsLoading(false);
     }
@@ -106,7 +96,7 @@ function ProductsPage() {
         const categoryData = await getCategories();
         setCategories(categoryData.filter((category) => category.status === "active"));
       } catch (error) {
-        setAlert({ type: "error", message: apiErrorMessage(error, "Unable to load categories.") });
+        alert.error(normalizeApiError(error).message);
       }
 
       await loadProducts(defaultFilters);
@@ -117,7 +107,10 @@ function ProductsPage() {
 
   function openCreateForm() {
     setEditingProduct(null);
-    setFormValues(emptyForm);
+    setFormValues({
+      ...emptyForm,
+      product_code: `PRD-${Math.floor(100000 + Math.random() * 900000)}`
+    });
     setFormErrors({});
     setImagePreview(null);
     setFormMode("create");
@@ -148,7 +141,7 @@ function ProductsPage() {
       setFormErrors({});
       setFormMode("edit");
     } catch (error) {
-      setAlert({ type: "error", message: apiErrorMessage(error, "Unable to load this product.") });
+      alert.error(normalizeApiError(error).message);
     } finally {
       setActionId(null);
     }
@@ -160,7 +153,7 @@ function ProductsPage() {
     try {
       setDetailsProduct(await getProduct(product.id));
     } catch (error) {
-      setAlert({ type: "error", message: apiErrorMessage(error, "Unable to load product details.") });
+      alert.error(normalizeApiError(error).message);
     } finally {
       setActionId(null);
     }
@@ -235,11 +228,12 @@ function ProductsPage() {
       setFormMode(null);
       setEditingProduct(null);
       setImagePreview(null);
-      setAlert({ type: "success", message: response.message });
+      alert.success(response.message || "Product saved successfully.");
       await loadProducts(appliedFilters);
     } catch (error) {
-      setFormErrors(validationErrors(error));
-      setAlert({ type: "error", message: apiErrorMessage(error, "Unable to save the product.") });
+      const normalized = normalizeApiError(error);
+      setFormErrors(normalized.fieldErrors);
+      alert.error(normalized.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -252,10 +246,10 @@ function ProductsPage() {
       const response = await generateProductBarcode(editingProduct.id);
       setFormValues((current) => ({ ...current, barcode: response.data.product.barcode }));
       setEditingProduct(response.data.product);
-      setAlert({ type: "success", message: response.message });
+      alert.success(response.message || "Barcode generated successfully.");
       await loadProducts(appliedFilters);
     } catch (error) {
-      setAlert({ type: "error", message: apiErrorMessage(error, "Unable to generate barcode.") });
+      alert.error(normalizeApiError(error).message);
     } finally {
       setIsSubmitting(false);
     }
@@ -267,29 +261,35 @@ function ProductsPage() {
     try {
       const response = await updateProductStatus(product.id, product.status === "active" ? "inactive" : "active");
       setProducts((current) => current.map((item) => item.id === product.id ? response.data.product : item));
-      setAlert({ type: "success", message: response.message });
+      alert.success(response.message || "Product status updated.");
     } catch (error) {
-      setAlert({ type: "error", message: apiErrorMessage(error, "Unable to change product status.") });
+      alert.error(normalizeApiError(error).message);
     } finally {
       setActionId(null);
     }
   }
 
-  async function handleDelete() {
-    if (!deleteTarget) return;
+  async function handleDelete(product) {
+    const confirmed = await confirmDialog({
+      title: "Delete Product",
+      description: "Are you sure you want to delete this product? This cannot be undone.",
+      confirmText: "Delete",
+      tone: "danger",
+      destructive: true,
+      requiredText: product.name
+    });
 
-    setIsSubmitting(true);
+    if (!confirmed) return;
 
+    setActionId(product.id);
     try {
-      const response = await deleteProduct(deleteTarget.id);
-      setDeleteTarget(null);
-      setAlert({ type: "success", message: response.message });
+      const response = await deleteProduct(product.id);
+      alert.success(response.message || "Product deleted.");
       await loadProducts(appliedFilters);
     } catch (error) {
-      setDeleteTarget(null);
-      setAlert({ type: "error", message: apiErrorMessage(error, "Unable to delete the product.") });
+      alert.error(normalizeApiError(error).message);
     } finally {
-      setIsSubmitting(false);
+      setActionId(null);
     }
   }
 
@@ -335,8 +335,6 @@ function ProductsPage() {
         </div>
       </section>
 
-      <AlertMessage type={alert?.type} message={alert?.message} onDismiss={() => setAlert(null)} />
-
       <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
         <form className="grid gap-3 border-b border-slate-100 p-4 md:grid-cols-[minmax(220px,1fr)_220px_180px_auto] md:items-end md:px-6" onSubmit={applyFilters}>
           <label>
@@ -375,8 +373,6 @@ function ProductsPage() {
       <Modal isOpen={detailsProduct !== null} title="Product details" description="Complete product information." onClose={() => setDetailsProduct(null)} size="lg">
         {detailsProduct && <ProductDetails product={detailsProduct} canViewCosts={canViewCosts} onClose={() => setDetailsProduct(null)} />}
       </Modal>
-
-      <ConfirmDialog isOpen={deleteTarget !== null} title="Delete product?" message={deleteTarget ? 'Delete "' + deleteTarget.name + '"? Products with sale history cannot be deleted.' : ""} isConfirming={isSubmitting} onCancel={() => setDeleteTarget(null)} onConfirm={handleDelete} />
     </div>
   );
 }

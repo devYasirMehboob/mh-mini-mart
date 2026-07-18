@@ -1,12 +1,118 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import apiClient from "../api/apiClient";
 import Icon from "../components/Icon";
-import Toast from "../components/pos/Toast";
 import PrintableLabelSheet from "../components/barcode/PrintableLabelSheet";
 import useSettings from "../hooks/useSettings";
+import useAlert from "../hooks/useAlert";
+import PageErrorState from "../components/feedback/PageErrorState";
+import normalizeApiError from "../utils/normalizeApiError";
 import { printHtmlViaQZ } from "../utils/qzService";
-import { createRoot } from "react-dom/client";
-import { flushSync } from "react-dom";
+
+function generatePrintHtml(labels) {
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Print Barcode Labels</title>
+        <style>
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { background: #fff; color: #000; margin: 0; padding: 0; font-family: monospace; }
+          @media print {
+            @page { margin: 0; size: auto; }
+          }
+          .barcode-strip {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            padding: 10px 0;
+          }
+          .barcode-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            margin-bottom: 20px; /* Spacing between barcodes on continuous rolls */
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          .barcode-svg {
+            width: 80% !important;
+            max-width: 220px;
+            height: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+          }
+          .barcode-svg svg {
+            width: 100% !important;
+            height: auto !important;
+            max-height: 48px;
+            display: block;
+            shape-rendering: crispEdges;
+          }
+          .barcode-digits {
+            margin-top: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            text-align: center;
+            letter-spacing: 1px;
+            white-space: nowrap;
+            color: #000;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="barcode-strip">
+          ${labels.map(label => `
+            <div class="barcode-card">
+              <div class="barcode-svg">${label.svg}</div>
+              <div class="barcode-digits">${label.barcode}</div>
+            </div>
+          `).join("")}
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+function printLabelsInBrowser(labels) {
+  return new Promise((resolve) => {
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0px";
+    iframe.style.height = "0px";
+    iframe.style.border = "0";
+
+    document.body.appendChild(iframe);
+
+    const frameWindow = iframe.contentWindow;
+    const frameDocument = iframe.contentDocument || iframe.contentWindow?.document;
+
+    if (!frameWindow || !frameDocument) {
+      iframe.remove();
+      resolve();
+      return;
+    }
+
+    frameDocument.open();
+    frameDocument.write(generatePrintHtml(labels));
+    frameDocument.close();
+
+    setTimeout(() => {
+      frameWindow.focus();
+      frameWindow.print();
+      setTimeout(() => {
+        iframe.remove();
+        resolve();
+      }, 1000);
+    }, 300);
+  });
+}
 
 export default function BarcodeLabelsPage() {
   const [products, setProducts] = useState([]);
@@ -16,13 +122,14 @@ export default function BarcodeLabelsPage() {
   const [pagination, setPagination] = useState({ page: 1, total_pages: 1, total: 0 });
   const [selectedItems, setSelectedItems] = useState({});
   const [isGenerating, setIsGenerating] = useState(false);
-  const [printData, setPrintData] = useState(null);
-  const [toast, setToast] = useState(null);
+  const alert = useAlert();
+  const [pageError, setPageError] = useState(null);
   const { settings } = useSettings();
 
   useEffect(() => {
     document.title = "Print Barcode Labels | MH Mini Mart";
   }, []);
+
 
   useEffect(() => {
     const controller = new AbortController();
@@ -37,7 +144,7 @@ export default function BarcodeLabelsPage() {
     })
     .catch(error => {
       if (error.code !== "ERR_CANCELED") {
-        setToast({ message: "Failed to load products.", type: "error" });
+        setPageError(normalizeApiError(error));
       }
     })
     .finally(() => {
@@ -62,82 +169,38 @@ export default function BarcodeLabelsPage() {
   const handlePrint = async () => {
     const items = Object.values(selectedItems).filter(item => item.quantity > 0);
     if (items.length === 0) {
-      return setToast({ message: "Select at least one product to print.", type: "error" });
+      return alert.error("Select at least one product to print.");
     }
 
     const unbarcoded = items.filter(i => !i.barcode);
     if (unbarcoded.length > 0) {
-      return setToast({ message: `Product "${unbarcoded[0].name}" does not have a barcode. Assign one first.`, type: "error" });
+      return alert.error(`Product "${unbarcoded[0].name}" does not have a barcode. Assign one first.`);
     }
 
     setIsGenerating(true);
     try {
       const response = await apiClient.post("/barcode-labels/print-data", { items });
-      const generatedLabels = response.data.data.labels;
-      
-      const printerName = settings?.printer?.label_printer_name || settings?.printer?.printer_name;
-      if (!printerName) {
-        throw new Error("Label printer name is not configured in settings. Please go to Settings > Printer to configure it.");
+      const generatedLabels = response.data.data.labels || [];
+      if (generatedLabels.length === 0) {
+        throw new Error("No barcode labels were generated for the selected products.");
       }
       
-      // Render the PrintableLabelSheet to an HTML string for QZ
-      const container = document.createElement('div');
-      const root = createRoot(container);
-      flushSync(() => {
-        root.render(<PrintableLabelSheet labels={generatedLabels} isQz={true} />);
-      });
-      
-      // Include minimal tailwind styles so QZ renders it correctly
-      const html = `
-        <html>
-          <head>
-            <style>
-              * { box-sizing: border-box; margin: 0; padding: 0; }
-              body { font-family: sans-serif; background: white; color: black; }
-              .grid { display: grid; }
-              .grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-              .gap-x-2 { column-gap: 0.5rem; }
-              .gap-y-4 { row-gap: 1rem; }
-              .p-4 { padding: 1rem; }
-              .text-center { text-align: center; }
-              .flex { display: flex; }
-              .flex-col { flex-direction: column; }
-              .items-center { align-items: center; }
-              .justify-center { justify-content: center; }
-              .border { border-width: 1px; border-style: dashed; border-color: #d1d5db; }
-              .p-2 { padding: 0.5rem; }
-              .break-inside-avoid { break-inside: avoid; }
-              .h-\\[1\\.5in\\] { height: 1.5in; }
-              .w-full { width: 100%; }
-              .justify-between { justify-content: space-between; }
-              .px-1 { padding-left: 0.25rem; padding-right: 0.25rem; }
-              .text-xs { font-size: 0.75rem; line-height: 1rem; }
-              .font-bold { font-weight: 700; }
-              .mb-1 { margin-bottom: 0.25rem; }
-              .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-              .w-3\\/4 { width: 75%; }
-              .w-1\\/4 { width: 25%; }
-              .text-right { text-align: right; }
-              .text-left { text-align: left; }
-              .flex-1 { flex: 1 1 0%; }
-              .overflow-hidden { overflow: hidden; }
-              .text-\\[10px\\] { font-size: 10px; }
-              .font-mono { font-family: monospace; }
-              .tracking-widest { letter-spacing: 0.1em; }
-              .mt-0\\.5 { margin-top: 0.125rem; }
-              svg { width: 100%; height: 100%; }
-            </style>
-          </head>
-          <body>
-            ${container.innerHTML}
-          </body>
-        </html>
-      `;
-      
-      await printHtmlViaQZ(printerName, html);
-      setToast({ message: "Labels sent to printer successfully.", type: "success" });
+      const printingMethod = settings?.printer?.printing_method || "browser";
+
+      if (printingMethod === "qz") {
+        const printerName = settings?.printer?.label_printer_name || settings?.printer?.printer_name;
+        if (!printerName) {
+          throw new Error("Label printer name is not configured in settings. Please go to Settings > Printer to configure it.");
+        }
+        
+        await printHtmlViaQZ(printerName, generatePrintHtml(generatedLabels));
+        alert.success("Labels sent to printer successfully.");
+      } else {
+        await printLabelsInBrowser(generatedLabels);
+        alert.success("Print dialog opened for barcode labels.");
+      }
     } catch (error) {
-      setToast({ message: error.response?.data?.message || error.message || "Failed to generate labels.", type: "error" });
+      alert.error(normalizeApiError(error).message);
     } finally {
       setIsGenerating(false);
     }
@@ -287,11 +350,8 @@ export default function BarcodeLabelsPage() {
             </div>
           </aside>
         </div>
-        
-        {toast && <Toast toast={toast} onClose={() => setToast(null)} />}
       </div>
-
-      {printData && <PrintableLabelSheet labels={printData} />}
     </>
   );
 }
+

@@ -2,17 +2,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getPosCategories, getPosProducts } from "../api/posApi";
 import { completeSale, getSaleReceipt } from "../api/salesApi";
-import ConfirmDialog from "../components/ConfirmDialog";
+
 import Icon from "../components/Icon";
 import CartItem from "../components/pos/CartItem";
 import HeldSalesDialog from "../components/pos/HeldSalesDialog";
 import PaymentPanel from "../components/pos/PaymentPanel";
 import ProductCard from "../components/pos/ProductCard";
 import SaleSuccessModal from "../components/pos/SaleSuccessModal";
-import Toast from "../components/pos/Toast";
+
 import TotalsPanel from "../components/pos/TotalsPanel";
 import ReceiptPreview from "../components/sales/ReceiptPreview";
+import useAlert from "../hooks/useAlert";
+import useConfirmation from "../hooks/useConfirmation";
+import normalizeApiError from "../utils/normalizeApiError";
 import useCart from "../hooks/useCart";
+import useGlobalBarcodeScanner from "../hooks/useGlobalBarcodeScanner";
 import useHeldSales from "../hooks/useHeldSales";
 import useScanQueue from "../hooks/useScanQueue";
 import useSettings from "../hooks/useSettings";
@@ -22,8 +26,7 @@ const DRAFT_KEY = "mh-mini-mart-pos-draft-v2";
 const PAGE_SIZE = 60;
 const blankPayment = () => ({ payment_method: "cash", payment_reference: "", amount_received: "", customer_name: "", customer_phone: "", note: "" });
 const newToken = () => crypto.randomUUID();
-const apiError = (error, fallback = "Unable to complete this action.") => error.response?.data?.message || (error.response ? fallback : "The local API could not be reached. Check Apache and MySQL.");
-
+// Global error normalization used instead
 function readDraft() {
   try {
     const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || "{}");
@@ -61,10 +64,15 @@ function PosPage() {
   const [category, setCategory] = useState("");
   const [page, setPage] = useState(1);
   const [barcode, setBarcode] = useState("");
-  const [toast, setToast] = useState(null);
-  const dismissToast = useCallback(() => setToast(null), []);
-  const notify = useCallback((message, type = "info") => setToast({ message, type, id: Date.now() }), []);
-  const scanQueue = useScanQueue(notify);
+  const alert = useAlert();
+  const confirmDialog = useConfirmation();
+  const notify = useCallback((message, type = "info") => alert[type === "error" ? "error" : "success"](message), [alert]);
+  const scanQueue = useScanQueue(cart, notify);
+  
+  useGlobalBarcodeScanner((scannedBarcode) => {
+    scanQueue.enqueue(scannedBarcode);
+  });
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [retryKey, setRetryKey] = useState(0);
@@ -73,7 +81,6 @@ function PosPage() {
   const [payment, setPayment] = useState(initialDraft.payment);
   const [activeHeldSaleId, setActiveHeldSaleId] = useState(initialDraft.activeHeldSaleId);
   const [activeHeldReference, setActiveHeldReference] = useState(initialDraft.activeHeldReference);
-  const [clearOpen, setClearOpen] = useState(false);
   const [heldOpen, setHeldOpen] = useState(false);
   const [removeHeld, setRemoveHeld] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -87,7 +94,7 @@ function PosPage() {
 
   useEffect(() => {
     document.title = "POS | MH Mini Mart";
-    getPosCategories().then(setCategories).catch((failure) => notify(apiError(failure, "Unable to load POS categories."), "error"));
+    getPosCategories().then(setCategories).catch((failure) => notify(normalizeApiError(failure).message, "error"));
   }, [notify]);
 
   useEffect(() => {
@@ -105,7 +112,7 @@ function PosPage() {
     setError("");
     getPosProducts({ search: query, category_id: category, page, limit: PAGE_SIZE }, controller.signal)
       .then((data) => { setProducts(data.products); setPagination(data.pagination); })
-      .catch((failure) => { if (failure.code !== "ERR_CANCELED") setError(apiError(failure, "Unable to load POS products.")); })
+      .catch((failure) => { if (failure.code !== "ERR_CANCELED") setError(normalizeApiError(failure).message); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [query, category, page, retryKey, stockRefresh]);
@@ -116,7 +123,7 @@ function PosPage() {
     if (initialCartIds.current.length === 0) return;
     getPosProducts({ ids: initialCartIds.current.join(","), limit: 100 })
       .then((data) => { const warnings = cart.revalidate(data.products); if (warnings.length) notify(warnings.join(" "), "error"); })
-      .catch((failure) => notify(apiError(failure, "Saved cart could not be checked. Review it before payment."), "error"));
+      .catch((failure) => notify(normalizeApiError(failure).message, "error"));
   }, [cart, notify]);
 
   function add(product) {
@@ -184,7 +191,7 @@ function PosPage() {
       resetDraft();
       notify(response.message, "success");
     } catch (failure) {
-      notify(apiError(failure, "Unable to hold this sale."), "error");
+      notify(normalizeApiError(failure).message, "error");
     }
   }
 
@@ -209,28 +216,43 @@ function PosPage() {
       setHeldOpen(false);
       notify(data.warnings.length ? `${data.reference_number} resumed. ${data.warnings.join(" ")}` : `${data.reference_number} resumed.`, data.warnings.length ? "info" : "success");
     } catch (failure) {
-      notify(apiError(failure, "Unable to resume this held sale."), "error");
+      notify(normalizeApiError(failure).message, "error");
     }
   }
 
-  async function confirmRemoveHeld() {
+  async function confirmRemoveHeld(sale) {
+    const confirmed = await confirmDialog({
+      title: "Remove held sale?",
+      description: "This removes the saved cart. Product stock will not change.",
+      confirmText: "Remove held sale",
+      tone: "danger",
+      destructive: true
+    });
+    if (!confirmed) return;
+
     try {
-      const response = await held.removeHeldSale(removeHeld.id);
-      if (activeHeldSaleId === Number(removeHeld.id)) {
+      const response = await held.removeHeldSale(sale.id);
+      if (activeHeldSaleId === Number(sale.id)) {
         setActiveHeldSaleId(null);
         setActiveHeldReference("");
       }
-      notify(response.message, "success");
+      notify(response.message || "Sale removed.", "success");
     } catch (failure) {
-      notify(apiError(failure, "Unable to remove this held sale."), "error");
-    } finally {
-      setRemoveHeld(null);
+      notify(normalizeApiError(failure).message, "error");
     }
   }
 
-  function clearCart() {
+  async function confirmClearCart() {
+    const confirmed = await confirmDialog({
+      title: "Clear current cart?",
+      description: "All selected products and payment details will be removed. The saved held record, if any, will remain available.",
+      confirmText: "Clear cart",
+      tone: "danger",
+      destructive: true
+    });
+    if (!confirmed) return;
+    
     resetDraft();
-    setClearOpen(false);
     notify("Cart cleared.");
   }
 
@@ -251,9 +273,9 @@ function PosPage() {
       resetDraft();
       await held.load().catch(() => undefined);
       setStockRefresh((value) => value + 1);
-      notify(response.message, "success");
+      notify(response.message || "Sale completed.", "success");
     } catch (failure) {
-      notify(apiError(failure, "The sale could not be completed. Your cart has been kept."), "error");
+      notify(normalizeApiError(failure).message, "error");
       if (failure.response?.status === 409) setStockRefresh((value) => value + 1);
     } finally {
       setIsSubmitting(false);
@@ -269,7 +291,7 @@ function PosPage() {
       setSavedSale(null);
       setReceiptOpen(true);
     } catch (failure) {
-      notify(apiError(failure, "Unable to load the saved receipt."), "error");
+      notify(normalizeApiError(failure).message, "error");
     } finally {
       setReceiptLoading(false);
     }
@@ -300,17 +322,14 @@ function PosPage() {
           {loading ? <Skeleton /> : products.length ? <><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">{products.map((product) => <ProductCard key={product.id} product={product} onAdd={add} />)}</div><Pagination pagination={pagination} onPage={setPage} /></> : <EmptyProducts />}
         </section>
         <aside className="premium-surface overflow-hidden rounded-xl xl:sticky xl:top-[98px]">
-          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon name="pos" className="size-[18px]" /></span><div><h3 className="text-base font-extrabold text-slate-900">Current cart</h3><p className="mt-0.5 text-[10px] font-medium text-slate-400">{cart.items.length} product(s) selected</p></div></div>{cart.items.length > 0 && <button className="rounded-lg px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50" type="button" onClick={() => setClearOpen(true)}>Clear</button>}</div>
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon name="pos" className="size-[18px]" /></span><div><h3 className="text-base font-extrabold text-slate-900">Current cart</h3><p className="mt-0.5 text-[10px] font-medium text-slate-400">{cart.items.length} product(s) selected</p></div></div>{cart.items.length > 0 && <button className="rounded-lg px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50" type="button" onClick={confirmClearCart}>Clear</button>}</div>
           <div className="max-h-[34vh] space-y-2.5 overflow-y-auto p-4">{cart.items.length ? cart.items.map((item) => <CartItem key={item.id} item={item} onQuantity={quantity} onRemove={remove} />) : <EmptyCart />}</div>
           <TotalsPanel totals={totals} discountType={discountType} discountValue={discountValue} discountsEnabled={discountSettings.enabled !== false} taxLabel={taxSettings.enabled ? `${taxSettings.name || "Tax"} (${taxSettings.percentage || 0}%)` : "Tax disabled"} onDiscountType={(value) => { setDiscountType(value); setDiscountValue("0"); }} onDiscountValue={changeDiscount} />
           <PaymentPanel values={payment} total={totals.grandTotal} onChange={(event) => setPayment((old) => ({ ...old, [event.target.name]: event.target.value }))} />
           <div className="grid grid-cols-[0.8fr_1.2fr] gap-2 border-t border-slate-100 bg-slate-50/60 p-4"><button type="button" disabled={!cart.items.length || isSubmitting} onClick={holdSale} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"><Icon name="hold" className="size-4" />{activeHeldSaleId ? "Update hold" : "Hold sale"}</button><button type="button" disabled={!cart.items.length || isSubmitting} onClick={complete} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-extrabold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-100 disabled:shadow-none disabled:opacity-50"><Icon name={isSubmitting ? "clock" : "card"} className={`size-4 ${isSubmitting ? "animate-pulse" : ""}`} />{isSubmitting ? "Processing..." : "Complete sale"}</button></div>
         </aside>
       </div>
-      <Toast toast={toast} onClose={dismissToast} />
-      <ConfirmDialog isOpen={clearOpen} title="Clear current cart?" message="All selected products and payment details will be removed. The saved held record, if any, will remain available." confirmLabel="Clear cart" onCancel={() => setClearOpen(false)} onConfirm={clearCart} />
-      <ConfirmDialog isOpen={Boolean(removeHeld)} title="Remove held sale?" message="This removes the saved cart. Product stock will not change." confirmLabel="Remove held sale" onCancel={() => setRemoveHeld(null)} onConfirm={confirmRemoveHeld} />
-      <HeldSalesDialog isOpen={heldOpen} sales={held.heldSales} isLoading={held.loading} error={held.error} onRetry={() => held.load().catch(() => undefined)} onClose={() => setHeldOpen(false)} onResume={resume} onRemove={(sale) => { setHeldOpen(false); setRemoveHeld(sale); }} />
+      <HeldSalesDialog isOpen={heldOpen} sales={held.heldSales} isLoading={held.loading} error={held.error} onRetry={() => held.load().catch(() => undefined)} onClose={() => setHeldOpen(false)} onResume={resume} onRemove={async (sale) => { setHeldOpen(false); await confirmRemoveHeld(sale); }} />
       <SaleSuccessModal sale={savedSale} isLoadingReceipt={receiptLoading} onPrint={openReceipt} onViewSale={() => navigate("/sales")} onNewSale={newSale} />
       <ReceiptPreview isOpen={receiptOpen} receipt={receipt} isLoading={false} autoPrint={receiptSettings.auto_print} onClose={() => setReceiptOpen(false)} />
     </div>

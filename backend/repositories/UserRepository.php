@@ -26,6 +26,13 @@ final class UserRepository
         return ['users'=>$statement->fetchAll(),'pagination'=>['page'=>$filters['page'],'limit'=>$filters['limit'],'total'=>$total,'total_pages'=>$total===0?0:(int)ceil($total/$filters['limit'])]];
     }
 
+    public function all(): array
+    {
+        $statement = $this->database->connection()->prepare('SELECT id, name, role FROM access_credentials WHERE is_active=1');
+        $statement->execute();
+        return $statement->fetchAll();
+    }
+
     public function find(int $id): ?array
     {
         $statement=$this->database->connection()->prepare("SELECT id,name,role,IF(is_active=1,'active','inactive') status,last_login_at,created_at,updated_at FROM access_credentials WHERE id=:id");$statement->execute(['id'=>$id]);$row=$statement->fetch();return$row===false?null:$row;
@@ -79,6 +86,13 @@ final class UserRepository
     public function historyCounts(int $id): array
     {
         $queries=['sales'=>['SELECT COUNT(*) FROM sales WHERE cashier_id=? OR cancelled_by=?',2],'expenses'=>['SELECT COUNT(*) FROM expenses WHERE added_by=? OR voided_by=?',2],'refunds'=>['SELECT COUNT(*) FROM refunds WHERE processed_by=?',1],'stock'=>['SELECT COUNT(*) FROM stock_transactions WHERE user_id=?',1],'held_sales'=>['SELECT COUNT(*) FROM held_sales WHERE held_by=?',1],'activity'=>['SELECT COUNT(*) FROM activity_logs WHERE actor_user_id=? OR subject_user_id=?',2]];$counts=[];foreach($queries as$key=>[$sql,$bindings]){$statement=$this->database->connection()->prepare($sql);$statement->execute(array_fill(0,$bindings,$id));$counts[$key]=(int)$statement->fetchColumn();}return$counts;
+    }
+
+    public function permissions(int $id): array
+    {
+        $statement = $this->database->connection()->prepare('SELECT p.permission_key FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id JOIN access_credentials u ON u.role = (SELECT slug FROM roles WHERE id = rp.role_id) WHERE u.id = :id');
+        $statement->execute(['id' => $id]);
+        return $statement->fetchAll(PDO::FETCH_COLUMN);
     }
 
     public function delete(int $id): void

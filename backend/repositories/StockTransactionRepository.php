@@ -128,8 +128,16 @@ final class StockTransactionRepository
                 'page' => $filters['page'],
                 'limit' => $filters['limit'],
                 'total' => $total,
-                'total_pages' => $total===0?0:(int)ceil($total/$filters['limit']),
+                'total_pages' => $total === 0 ? 0 : (int) ceil($total / $filters['limit']),
             ],
         ];
+    }
+
+    public function deleteByProduct(int $productId): void
+    {
+        $statement = $this->database->connection()->prepare(
+            'DELETE FROM stock_transactions WHERE product_id = :product_id'
+        );
+        $statement->execute(['product_id' => $productId]);
     }
 }

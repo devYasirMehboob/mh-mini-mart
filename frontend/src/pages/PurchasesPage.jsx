@@ -1,4 +1,331 @@
-import {useEffect,useState} from "react";import {Link,useNavigate} from "react-router-dom";import {exportPurchases,getPurchases} from "../api/purchasesApi";import AlertMessage from "../components/AlertMessage";import EmptyState from "../components/EmptyState";import Icon from "../components/Icon";import LoadingState from "../components/LoadingState";import PurchaseStatusBadge from "../components/purchases/PurchaseStatusBadge";import SalesPagination from "../components/sales/SalesPagination";import {formatCurrency,formatDate} from "../utils/calculateSaleTotals";import usePermissions from "../hooks/usePermissions";
-const safe=(e,f)=>e.response?.data?.message||f;const initial={search:"",supplier_id:"",payment_status:"",purchase_status:"",date_from:"",date_to:"",min_total:"",max_total:"",sort_by:"purchase_date",sort_direction:"desc",page:1,limit:20};
-function PurchasesPage(){const navigate=useNavigate();const{can}=usePermissions();const[filters,setFilters]=useState(initial);const[data,setData]=useState({purchases:[],pagination:null,summary:{},suppliers:[]});const[loading,setLoading]=useState(true);const[alert,setAlert]=useState(null);const[reload,setReload]=useState(0);useEffect(()=>{document.title="Purchases | MH Mini Mart"},[]);useEffect(()=>{const timer=setTimeout(()=>{setLoading(true);getPurchases(filters).then(setData).catch(e=>setAlert({type:"error",message:safe(e,"Purchases could not be loaded.")})).finally(()=>setLoading(false))},filters.search?300:0);return()=>clearTimeout(timer)},[filters,reload]);const change=(k,v)=>setFilters(f=>({...f,[k]:v,page:1}));async function download(){try{const r=await exportPurchases(filters),url=URL.createObjectURL(r.data),a=document.createElement("a");a.href=url;a.download="mh-mini-mart-purchases.csv";a.click();URL.revokeObjectURL(url)}catch(e){setAlert({type:"error",message:safe(e,"Purchase export failed.")})}}return <div className="space-y-5"><header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><h2 className="text-[28px] font-extrabold">Purchases</h2><p className="mt-1 text-sm text-slate-500">Supplier bills, payments, returns and inventory receipts.</p></div><div className="flex gap-2">{can("purchases.export")&&<button type="button" onClick={download} className="inline-flex min-h-11 items-center gap-2 rounded-xl border bg-white px-4 text-xs font-bold"><Icon name="export" className="size-4"/>Export CSV</button>}{can("purchases.create")&&<Link to="/purchases/new" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-bold text-white"><Icon name="plus" className="size-4"/>New purchase</Link>}</div></header><AlertMessage type={alert?.type} message={alert?.message}/><section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[["Purchase value",data.summary.total_purchases],["Paid",data.summary.total_paid],["Outstanding",data.summary.total_due],["Posted bills",data.summary.purchase_count]].map(([l,v],i)=><article key={l} className="premium-surface rounded-xl p-4"><small className="text-[9px] font-bold uppercase text-slate-400">{l}</small><strong className="mt-2 block text-lg">{i===3?Number(v||0):formatCurrency(v)}</strong></article>)}</section><section className="premium-surface rounded-xl p-4"><div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6"><input value={filters.search} onChange={e=>change("search",e.target.value)} placeholder="Purchase or invoice..." className="min-h-10 rounded-lg border px-3 text-xs xl:col-span-2"/><select value={filters.supplier_id} onChange={e=>change("supplier_id",e.target.value)} className="min-h-10 rounded-lg border px-3 text-xs"><option value="">All suppliers</option>{data.suppliers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select><select value={filters.payment_status} onChange={e=>change("payment_status",e.target.value)} className="min-h-10 rounded-lg border px-3 text-xs"><option value="">All payments</option><option value="unpaid">Unpaid</option><option value="partially_paid">Partially paid</option><option value="paid">Paid</option></select><select value={filters.purchase_status} onChange={e=>change("purchase_status",e.target.value)} className="min-h-10 rounded-lg border px-3 text-xs"><option value="">All statuses</option>{["draft","completed","partially_returned","returned","cancelled"].map(s=><option key={s} value={s}>{s.replaceAll("_"," ")}</option>)}</select><input type="date" value={filters.date_from} onChange={e=>change("date_from",e.target.value)} aria-label="Purchase date from" className="min-h-10 rounded-lg border px-3 text-xs"/><input type="date" value={filters.date_to} onChange={e=>change("date_to",e.target.value)} aria-label="Purchase date to" className="min-h-10 rounded-lg border px-3 text-xs"/><input type="number" min="0" step="0.01" value={filters.min_total} onChange={e=>change("min_total",e.target.value)} placeholder="Minimum total" className="min-h-10 rounded-lg border px-3 text-xs"/><input type="number" min="0" step="0.01" value={filters.max_total} onChange={e=>change("max_total",e.target.value)} placeholder="Maximum total" className="min-h-10 rounded-lg border px-3 text-xs"/><select value={`${filters.sort_by}:${filters.sort_direction}`} onChange={e=>{const [sort_by,sort_direction]=e.target.value.split(":");setFilters(f=>({...f,sort_by,sort_direction,page:1}))}} className="min-h-10 rounded-lg border px-3 text-xs"><option value="purchase_date:desc">Newest first</option><option value="purchase_date:asc">Oldest first</option><option value="grand_total:desc">Highest total</option><option value="grand_total:asc">Lowest total</option><option value="balance_due:desc">Highest balance</option><option value="purchase_number:asc">Purchase number</option></select><button type="button" onClick={()=>{setFilters(initial);setReload(v=>v+1)}} className="rounded-lg border text-xs font-bold">Clear</button></div></section><section className="premium-surface overflow-hidden rounded-xl">{loading?<LoadingState label="Loading purchases..."/>:data.purchases.length===0?<EmptyState icon="sales" title="No purchases found" description="Create a purchase or adjust the filters."/>:<><div className="overflow-x-auto"><table className="w-full min-w-[1200px] text-left text-xs"><thead className="bg-slate-50 text-[9px] uppercase text-slate-400"><tr>{["Purchase","Supplier","Date","Items","Total","Paid","Balance","Payment","Status","Created by","Actions"].map(h=><th key={h} className="p-3">{h}</th>)}</tr></thead><tbody className="divide-y">{data.purchases.map(p=><tr key={p.id}><td className="p-3"><strong>{p.purchase_number}</strong><small className="block text-slate-400">{p.supplier_invoice_number||"No supplier invoice"}</small></td><td className="p-3 font-bold">{p.supplier_name}</td><td className="p-3">{formatDate(p.purchase_date)}</td><td className="p-3">{p.item_count}</td><td className="p-3 font-extrabold">{formatCurrency(p.grand_total)}</td><td className="p-3">{formatCurrency(p.amount_paid)}</td><td className="p-3">{formatCurrency(p.balance_due)}</td><td className="p-3"><PurchaseStatusBadge status={p.payment_status}/></td><td className="p-3"><PurchaseStatusBadge status={p.purchase_status}/></td><td className="p-3">{p.created_by_name}</td><td className="p-3"><div className="flex gap-1"><button type="button" onClick={()=>navigate(`/purchases/${p.id}`)} className="grid size-8 place-items-center rounded-lg hover:bg-blue-50"><Icon name="eye" className="size-4"/></button>{p.purchase_status==="draft"&&can("purchases.update")&&<button type="button" onClick={()=>navigate(`/purchases/${p.id}/edit`)} className="grid size-8 place-items-center rounded-lg hover:bg-blue-50"><Icon name="edit" className="size-4"/></button>}</div></td></tr>)}</tbody></table></div><SalesPagination pagination={data.pagination} onPage={page=>setFilters(f=>({...f,page}))}/></>}</section></div>}
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { exportPurchases, getPurchases } from "../api/purchasesApi";
+import EmptyState from "../components/feedback/EmptyState";
+import Icon from "../components/Icon";
+import LoadingState from "../components/feedback/LoadingState";
+import PageErrorState from "../components/feedback/PageErrorState";
+import PurchaseStatusBadge from "../components/purchases/PurchaseStatusBadge";
+import SalesPagination from "../components/sales/SalesPagination";
+import { formatCurrency, formatDate } from "../utils/calculateSaleTotals";
+import usePermissions from "../hooks/usePermissions";
+import useAlert from "../hooks/useAlert";
+import normalizeApiError from "../utils/normalizeApiError";
+
+const initial = {
+  search: "",
+  supplier_id: "",
+  payment_status: "",
+  purchase_status: "",
+  date_from: "",
+  date_to: "",
+  min_total: "",
+  max_total: "",
+  sort_by: "purchase_date",
+  sort_direction: "desc",
+  page: 1,
+  limit: 20,
+};
+
+function PurchasesPage() {
+  const navigate = useNavigate();
+  const { can } = usePermissions();
+  const alert = useAlert();
+  
+  const [filters, setFilters] = useState(initial);
+  const [data, setData] = useState({
+    purchases: [],
+    pagination: null,
+    summary: {},
+    suppliers: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [pageError, setPageError] = useState(null);
+  const [reload, setReload] = useState(0);
+
+  useEffect(() => {
+    document.title = "Purchases | MH Mini Mart";
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoading(true);
+      setPageError(null);
+      getPurchases(filters)
+        .then(setData)
+        .catch((e) => setPageError(normalizeApiError(e)))
+        .finally(() => setLoading(false));
+    }, filters.search ? 300 : 0);
+    return () => clearTimeout(timer);
+  }, [filters, reload]);
+
+  const change = (k, v) => setFilters((f) => ({ ...f, [k]: v, page: 1 }));
+
+  async function download() {
+    try {
+      const r = await exportPurchases(filters);
+      const url = URL.createObjectURL(r.data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "mh-mini-mart-purchases.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+      alert.success("Purchases exported successfully.");
+    } catch (e) {
+      alert.error(normalizeApiError(e).message);
+    }
+  }
+
+  if (pageError) return <PageErrorState error={pageError} onRetry={() => setReload(v=>v+1)} />;
+
+  return (
+    <div className="space-y-5">
+      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div>
+          <h2 className="text-[28px] font-extrabold">Purchases</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Supplier bills, payments, returns and inventory receipts.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {can("purchases.export") && (
+            <button
+              type="button"
+              onClick={download}
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl border bg-white px-4 text-xs font-bold"
+            >
+              <Icon name="export" className="size-4" />
+              Export CSV
+            </button>
+          )}
+          {can("purchases.create") && (
+            <Link
+              to="/purchases/new"
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-bold text-white"
+            >
+              <Icon name="plus" className="size-4" />
+              New purchase
+            </Link>
+          )}
+        </div>
+      </header>
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          ["Purchase value", data.summary.total_purchases],
+          ["Paid", data.summary.total_paid],
+          ["Outstanding", data.summary.total_due],
+          ["Posted bills", data.summary.purchase_count],
+        ].map(([l, v], i) => (
+          <article key={l} className="premium-surface rounded-xl p-4">
+            <small className="text-[9px] font-bold uppercase text-slate-400">
+              {l}
+            </small>
+            <strong className="mt-2 block text-lg">
+              {i === 3 ? Number(v || 0) : formatCurrency(v)}
+            </strong>
+          </article>
+        ))}
+      </section>
+
+      <section className="premium-surface rounded-xl p-4">
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <input
+            value={filters.search}
+            onChange={(e) => change("search", e.target.value)}
+            placeholder="Purchase or invoice..."
+            className="min-h-10 rounded-lg border px-3 text-xs xl:col-span-2"
+          />
+          <select
+            value={filters.supplier_id}
+            onChange={(e) => change("supplier_id", e.target.value)}
+            className="min-h-10 rounded-lg border px-3 text-xs"
+          >
+            <option value="">All suppliers</option>
+            {data.suppliers.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={filters.payment_status}
+            onChange={(e) => change("payment_status", e.target.value)}
+            className="min-h-10 rounded-lg border px-3 text-xs"
+          >
+            <option value="">All payments</option>
+            <option value="unpaid">Unpaid</option>
+            <option value="partially_paid">Partially paid</option>
+            <option value="paid">Paid</option>
+          </select>
+          <select
+            value={filters.purchase_status}
+            onChange={(e) => change("purchase_status", e.target.value)}
+            className="min-h-10 rounded-lg border px-3 text-xs"
+          >
+            <option value="">All statuses</option>
+            {["draft", "completed", "partially_returned", "returned", "cancelled"].map(
+              (s) => (
+                <option key={s} value={s}>
+                  {s.replaceAll("_", " ")}
+                </option>
+              )
+            )}
+          </select>
+          <input
+            type="date"
+            value={filters.date_from}
+            onChange={(e) => change("date_from", e.target.value)}
+            aria-label="Purchase date from"
+            className="min-h-10 rounded-lg border px-3 text-xs"
+          />
+          <input
+            type="date"
+            value={filters.date_to}
+            onChange={(e) => change("date_to", e.target.value)}
+            aria-label="Purchase date to"
+            className="min-h-10 rounded-lg border px-3 text-xs"
+          />
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={filters.min_total}
+            onChange={(e) => change("min_total", e.target.value)}
+            placeholder="Minimum total"
+            className="min-h-10 rounded-lg border px-3 text-xs"
+          />
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={filters.max_total}
+            onChange={(e) => change("max_total", e.target.value)}
+            placeholder="Maximum total"
+            className="min-h-10 rounded-lg border px-3 text-xs"
+          />
+          <select
+            value={`${filters.sort_by}:${filters.sort_direction}`}
+            onChange={(e) => {
+              const [sort_by, sort_direction] = e.target.value.split(":");
+              setFilters((f) => ({ ...f, sort_by, sort_direction, page: 1 }));
+            }}
+            className="min-h-10 rounded-lg border px-3 text-xs"
+          >
+            <option value="purchase_date:desc">Newest first</option>
+            <option value="purchase_date:asc">Oldest first</option>
+            <option value="grand_total:desc">Highest total</option>
+            <option value="grand_total:asc">Lowest total</option>
+            <option value="balance_due:desc">Highest balance</option>
+            <option value="purchase_number:asc">Purchase number</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => {
+              setFilters(initial);
+              setReload((v) => v + 1);
+            }}
+            className="rounded-lg border text-xs font-bold"
+          >
+            Clear
+          </button>
+        </div>
+      </section>
+
+      <section className="premium-surface overflow-hidden rounded-xl">
+        {loading ? (
+          <LoadingState message="Loading purchases..." />
+        ) : data.purchases.length === 0 ? (
+          <EmptyState
+            title="No purchases found"
+            message="Create a purchase or adjust the filters."
+          />
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1200px] text-left text-xs">
+                <thead className="bg-slate-50 text-[9px] uppercase text-slate-400">
+                  <tr>
+                    {[
+                      "Purchase",
+                      "Supplier",
+                      "Date",
+                      "Items",
+                      "Total",
+                      "Paid",
+                      "Balance",
+                      "Payment",
+                      "Status",
+                      "Created by",
+                      "Actions",
+                    ].map((h) => (
+                      <th key={h} className="p-3">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {data.purchases.map((p) => (
+                    <tr key={p.id}>
+                      <td className="p-3">
+                        <strong>{p.purchase_number}</strong>
+                        <small className="block text-slate-400">
+                          {p.supplier_invoice_number || "No supplier invoice"}
+                        </small>
+                      </td>
+                      <td className="p-3 font-bold">{p.supplier_name}</td>
+                      <td className="p-3">{formatDate(p.purchase_date)}</td>
+                      <td className="p-3">{p.item_count}</td>
+                      <td className="p-3 font-extrabold">
+                        {formatCurrency(p.grand_total)}
+                      </td>
+                      <td className="p-3">{formatCurrency(p.amount_paid)}</td>
+                      <td className="p-3">{formatCurrency(p.balance_due)}</td>
+                      <td className="p-3">
+                        <PurchaseStatusBadge status={p.payment_status} />
+                      </td>
+                      <td className="p-3">
+                        <PurchaseStatusBadge status={p.purchase_status} />
+                      </td>
+                      <td className="p-3">{p.created_by_name}</td>
+                      <td className="p-3">
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/purchases/${p.id}`)}
+                            className="grid size-8 place-items-center rounded-lg hover:bg-blue-50"
+                          >
+                            <Icon name="eye" className="size-4" />
+                          </button>
+                          {p.purchase_status === "draft" &&
+                            can("purchases.update") && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  navigate(`/purchases/${p.id}/edit`)
+                                }
+                                className="grid size-8 place-items-center rounded-lg hover:bg-blue-50"
+                              >
+                                <Icon name="edit" className="size-4" />
+                              </button>
+                            )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <SalesPagination
+              pagination={data.pagination}
+              onPage={(page) => setFilters((f) => ({ ...f, page }))}
+            />
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export default PurchasesPage;

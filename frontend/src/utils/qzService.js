@@ -2,6 +2,18 @@ import qz from "qz-tray";
 
 let connectionPromise = null;
 
+// Provide a dummy certificate to prevent console errors.
+// This will trigger the manual "Allow Connection" popup on the user's PC.
+qz.security.setCertificatePromise((resolve) => {
+    resolve();
+});
+
+qz.security.setSignaturePromise(() => {
+    return (resolve) => {
+        resolve();
+    };
+});
+
 export const connectToQZ = () => {
   if (qz.websocket.isActive()) {
     return Promise.resolve();
@@ -10,7 +22,7 @@ export const connectToQZ = () => {
   if (!connectionPromise) {
     connectionPromise = qz.websocket.connect({ retries: 2, delay: 1 }).then(() => {
       connectionPromise = null;
-    }).catch((err) => {
+    }).catch(() => {
       connectionPromise = null;
       throw new Error("QZ Tray is not running or printer machine is not connected. Please start QZ Tray and try again.");
     });
@@ -26,7 +38,7 @@ export const printHtmlViaQZ = async (printerName, htmlContent) => {
   try {
     // Find printer by partial name
     printers = await qz.printers.find(printerName);
-  } catch (err) {
+  } catch (_) {
     throw new Error(`Printer "${printerName}" is not connected or not found by QZ Tray.`);
   }
 

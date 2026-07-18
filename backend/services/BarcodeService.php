@@ -15,7 +15,9 @@ final class BarcodeService
      */
     public function generateUniqueBarcode(): string
     {
-        return 'MH' . mb_substr((string)time(), 4) . mt_rand(10, 99);
+        // 10-digit purely numeric barcode.
+        // Pure numeric strings allow Code 128 to use type C (which is 50% narrower).
+        return mb_substr((string)time(), 2) . mt_rand(10, 99);
     }
 
     /**
@@ -27,7 +29,8 @@ final class BarcodeService
         $barcodeType = $this->resolveType($type, $generator);
         
         try {
-            return $generator->getBarcode($barcode, $barcodeType, 2, 60);
+            // Wider modules and taller bars print more reliably on small thermal labels.
+            return $generator->getBarcode($barcode, $barcodeType, 2.0, 70);
         } catch (\Exception $e) {
             throw new HttpException('Unable to generate barcode image: ' . $e->getMessage(), 422);
         }
@@ -42,7 +45,7 @@ final class BarcodeService
         $barcodeType = $this->resolveType($type, $generator);
         
         try {
-            return $generator->getBarcode($barcode, $barcodeType, 2, 60);
+            return $generator->getBarcode($barcode, $barcodeType, 2.0, 70);
         } catch (\Exception $e) {
             throw new HttpException('Unable to generate barcode image: ' . $e->getMessage(), 422);
         }
@@ -58,3 +61,5 @@ final class BarcodeService
         };
     }
 }
+
+

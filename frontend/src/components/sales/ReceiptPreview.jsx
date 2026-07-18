@@ -6,6 +6,7 @@ import {
   formatDateTime,
 } from "../../utils/calculateSaleTotals";
 import useSettings from "../../hooks/useSettings";
+import useAlert from "../../hooks/useAlert";
 
 function ReceiptPreview({
   isOpen,
@@ -15,21 +16,25 @@ function ReceiptPreview({
   autoPrint = false,
 }) {
   const { settings } = useSettings();
+  const alert = useAlert();
   const options = receipt?.options || settings?.receipt || {};
   const shop = receipt?.shop || {};
   const logo = settings?.shop?.logo_url;
   const [isPrinting, setIsPrinting] = useState(false);
 
   const handlePrint = async () => {
-    const printerName = settings?.printer?.printer_name;
-    if (!printerName) {
-      alert("Receipt printer name is not configured in settings. Please configure it in Settings > Printer.");
-      return;
-    }
-    
-    try {
-      setIsPrinting(true);
-      const html = document.querySelector(".receipt-print-root").outerHTML;
+    const printingMethod = settings?.printer?.printing_method || "browser";
+
+    if (printingMethod === "qz") {
+      const printerName = settings?.printer?.printer_name;
+      if (!printerName) {
+        alert.error("Receipt printer name is not configured in settings. Please configure it in Settings > Printer.");
+        return;
+      }
+      
+      try {
+        setIsPrinting(true);
+        const html = document.querySelector(".receipt-print-root").outerHTML;
       const fullHtml = `<html><head><style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: monospace; background: white; color: black; font-size: 11px; }
@@ -47,12 +52,15 @@ function ReceiptPreview({
         .bg-white { background-color: white; } .p-4 { padding: 1rem; } .text-lg { font-size: 1.125rem; } .text-sm { font-size: 0.875rem; }
       </style></head><body>${html}</body></html>`;
       
-      const { printHtmlViaQZ } = await import("../../utils/qzService");
-      await printHtmlViaQZ(printerName, fullHtml);
-    } catch (err) {
-      alert("Failed to print via QZ Tray:\n\n" + (err.message || "Unknown error"));
-    } finally {
-      setIsPrinting(false);
+        const { printHtmlViaQZ } = await import("../../utils/qzService");
+        await printHtmlViaQZ(printerName, fullHtml);
+      } catch (err) {
+        alert.error("Failed to print via QZ Tray: " + (err.message || "Unknown error"));
+      } finally {
+        setIsPrinting(false);
+      }
+    } else {
+      window.print();
     }
   };
 

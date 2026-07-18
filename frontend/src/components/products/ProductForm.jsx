@@ -66,7 +66,16 @@ function ProductForm({
                   </button>
                 )}
               </label>
-              <input className={inputClasses(errors.barcode)} id="product-barcode" name="barcode" value={values.barcode} onChange={onChange} disabled={isSubmitting} maxLength="100" />
+              <input 
+                className={inputClasses(errors.barcode)} 
+                id="product-barcode" 
+                name="barcode" 
+                value={values.barcode} 
+                onChange={onChange} 
+                disabled={isSubmitting} 
+                placeholder="Leave empty to auto-generate"
+                maxLength="100" 
+              />
               <FieldError message={errors.barcode} />
             </div>
             <div>

@@ -24,8 +24,13 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 
 const permitted = (permission, component) => <PermissionRoute permission={permission}>{component}</PermissionRoute>;
 
+import NotificationsPage from "./pages/NotificationsPage";
+import AlertProvider from "./components/feedback/AlertProvider";
+
 function App() {
-  return <Routes>
+  return (
+    <AlertProvider>
+      <Routes>
     <Route path="/login" element={<LoginPage />} />
     <Route element={<ProtectedRoute />}>
       <Route element={<AppLayout />}>
@@ -48,10 +53,13 @@ function App() {
         <Route path="users" element={permitted("users.manage", <UsersPage />)} />
         <Route path="backups" element={permitted("backups.create", <BackupsPage />)} />
         <Route path="settings" element={permitted("settings.manage", <SettingsPage />)} />
+        <Route path="notifications" element={permitted("notifications.view", <NotificationsPage />)} />
         <Route path="access-denied" element={<AccessDeniedPage />} />
       </Route>
     </Route>
     <Route path="*" element={<Navigate to="/pos" replace />} />
-  </Routes>;
+      </Routes>
+    </AlertProvider>
+  );
 }
 export default App;

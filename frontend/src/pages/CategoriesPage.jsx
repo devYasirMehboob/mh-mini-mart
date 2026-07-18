@@ -8,39 +8,24 @@ import {
   updateCategoryStatus,
 } from "../api/categoriesApi";
 import CategoryForm from "../components/categories/CategoryForm";
-import ConfirmDialog from "../components/ConfirmDialog";
 import Icon from "../components/Icon";
 import Modal from "../components/Modal";
 import StatusBadge from "../components/StatusBadge";
+import useAlert from "../hooks/useAlert";
+import useConfirmation from "../hooks/useConfirmation";
+import normalizeApiError from "../utils/normalizeApiError";
 
 const emptyForm = { name: "", description: "" };
 
-function apiErrorMessage(error, fallback) {
-  if (!error.response) {
-    return "The local API could not be reached. Check that Apache and MySQL are running.";
-  }
-
-  return error.response.data?.message || fallback;
-}
-
-function validationErrors(error) {
-  const errors = error.response?.data?.errors || {};
-
-  return Object.fromEntries(
-    Object.entries(errors).map(([field, messages]) => [
-      field,
-      Array.isArray(messages) ? messages[0] : messages,
-    ]),
-  );
-}
+// Global error normalization used instead
 
 function CategoriesPage() {
   const [categories, setCategories] = useState([]);
   const [searchInput, setSearchInput] = useState("");
   const [activeSearch, setActiveSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [pageError, setPageError] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  const alert = useAlert();
+  const confirmDialog = useConfirmation();
   const [formMode, setFormMode] = useState(null);
   const [editingCategory, setEditingCategory] = useState(null);
   const [formValues, setFormValues] = useState(emptyForm);
@@ -51,13 +36,12 @@ function CategoriesPage() {
 
   const loadCategories = useCallback(async (search = "") => {
     setIsLoading(true);
-    setPageError("");
 
     try {
       setCategories(await getCategories(search));
       setActiveSearch(search);
     } catch (error) {
-      setPageError(apiErrorMessage(error, "Unable to load categories."));
+      alert.error(normalizeApiError(error).message);
     } finally {
       setIsLoading(false);
     }
@@ -68,10 +52,7 @@ function CategoriesPage() {
     loadCategories();
   }, [loadCategories]);
 
-  function showSuccess(message) {
-    setSuccessMessage(message);
-    setPageError("");
-  }
+
 
   function openCreateForm() {
     setEditingCategory(null);
@@ -82,7 +63,6 @@ function CategoriesPage() {
 
   async function openEditForm(category) {
     setActionId(category.id);
-    setPageError("");
 
     try {
       const latestCategory = await getCategory(category.id);
@@ -94,7 +74,7 @@ function CategoriesPage() {
       setFormErrors({});
       setFormMode("edit");
     } catch (error) {
-      setPageError(apiErrorMessage(error, "Unable to load this category."));
+      alert.error(normalizeApiError(error).message);
     } finally {
       setActionId(null);
     }
@@ -131,23 +111,22 @@ function CategoriesPage() {
 
       setFormMode(null);
       setEditingCategory(null);
-      showSuccess(response.message);
+      alert.success(response.message || "Category saved successfully.");
       await loadCategories(activeSearch);
     } catch (error) {
-      setFormErrors(validationErrors(error));
-
-      if (!error.response?.data?.errors) {
-        setPageError(apiErrorMessage(error, "Unable to save the category."));
+      const normalized = normalizeApiError(error);
+      setFormErrors(normalized.fieldErrors);
+      if (Object.keys(normalized.fieldErrors).length === 0) {
+        alert.error(normalized.message);
       }
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  async function handleStatusChange(category) {
+  async function toggleStatus(category) {
     const nextStatus = category.status === "active" ? "inactive" : "active";
     setActionId(category.id);
-    setPageError("");
 
     try {
       const response = await updateCategoryStatus(category.id, nextStatus);
@@ -156,30 +135,38 @@ function CategoriesPage() {
           item.id === category.id ? response.data.category : item
         ),
       );
-      showSuccess(response.message);
+      alert.success(response.message || "Category status updated.");
     } catch (error) {
-      setPageError(apiErrorMessage(error, "Unable to update category status."));
+      alert.error(normalizeApiError(error).message);
     } finally {
       setActionId(null);
     }
   }
 
-  async function handleDelete() {
-    if (!deleteTarget) return;
+  async function handleDelete(category) {
+    const confirmed = await confirmDialog({
+      title: "Delete Category",
+      description: "Are you sure you want to delete this category? Products associated with this category must be reassigned first.",
+      confirmText: "Delete",
+      tone: "danger",
+      destructive: true,
+      requiredText: category.name
+    });
 
+    if (!confirmed) return;
+
+    setActionId(category.id);
     setIsSubmitting(true);
-    setPageError("");
 
     try {
-      const response = await deleteCategory(deleteTarget.id);
-      setDeleteTarget(null);
-      showSuccess(response.message);
+      const response = await deleteCategory(category.id);
+      alert.success(response.message || "Category deleted.");
       await loadCategories(activeSearch);
     } catch (error) {
-      setDeleteTarget(null);
-      setPageError(apiErrorMessage(error, "Unable to delete the category."));
+      alert.error(normalizeApiError(error).message);
     } finally {
       setIsSubmitting(false);
+      setActionId(null);
     }
   }
 
@@ -215,19 +202,7 @@ function CategoriesPage() {
         </button>
       </section>
 
-      {successMessage && (
-        <div className="flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800" role="status">
-          <span>{successMessage}</span>
-          <button type="button" className="font-bold text-emerald-700" onClick={() => setSuccessMessage("")}>×</button>
-        </div>
-      )}
 
-      {pageError && (
-        <div className="flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
-          <span>{pageError}</span>
-          <button type="button" className="font-bold text-red-600" onClick={() => setPageError("")}>×</button>
-        </div>
-      )}
 
       <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
         <div className="flex flex-col gap-4 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
@@ -351,7 +326,7 @@ function CategoriesPage() {
                           type="button"
                           aria-label={"Delete " + category.name}
                           disabled={actionId === category.id}
-                          onClick={() => setDeleteTarget(category)}
+                          onClick={() => handleDelete(category)}
                         >
                           <Icon name="trash" className="size-4" />
                         </button>
@@ -381,15 +356,6 @@ function CategoriesPage() {
           onCancel={closeForm}
         />
       </Modal>
-
-      <ConfirmDialog
-        isOpen={deleteTarget !== null}
-        title="Delete category?"
-        message={deleteTarget ? 'Delete "' + deleteTarget.name + '"? This action cannot be undone.' : ""}
-        isConfirming={isSubmitting}
-        onCancel={() => setDeleteTarget(null)}
-        onConfirm={handleDelete}
-      />
     </div>
   );
 }

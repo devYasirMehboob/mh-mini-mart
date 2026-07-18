@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getCategories } from "../api/categoriesApi";
 import {
   getInventory,
@@ -7,7 +7,8 @@ import {
   getStockTransactions,
   recordStockMovement,
 } from "../api/inventoryApi";
-import AlertMessage from "../components/AlertMessage";
+import useAlert from "../hooks/useAlert";
+import normalizeApiError from "../utils/normalizeApiError";
 import EmptyState from "../components/EmptyState";
 import InventorySummary from "../components/inventory/InventorySummary";
 import InventoryTable from "../components/inventory/InventoryTable";
@@ -19,15 +20,7 @@ import Modal from "../components/Modal";
 const inventoryDefaults = { search: "", category_id: "", stock_status: "", page: 1, limit: 10 };
 const historyDefaults = { transaction_type: "", date_from: "", date_to: "", page: 1, limit: 10 };
 
-function apiErrorMessage(error, fallback) {
-  if (!error.response) return "The local API could not be reached. Check that Apache and MySQL are running.";
-  return error.response.data?.message || fallback;
-}
-
-function validationErrors(error) {
-  const errors = error.response?.data?.errors || {};
-  return Object.fromEntries(Object.entries(errors).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value]));
-}
+// Global error normalization used instead
 
 function InventoryPage() {
   const [tab, setTab] = useState("stock");
@@ -43,7 +36,7 @@ function InventoryPage() {
   const [historyPagination, setHistoryPagination] = useState({ page: 1, total: 0, total_pages: 1 });
   const [isLoading, setIsLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [alert, setAlert] = useState(null);
+  const alert = useAlert();
   const [stockProduct, setStockProduct] = useState(null);
   const [stockAction, setStockAction] = useState("add");
   const [stockValues, setStockValues] = useState({ quantity: "", reason: "" });
@@ -65,7 +58,7 @@ function InventoryPage() {
       setSummary(summaryData);
       setAppliedInventoryFilters(filters);
     } catch (error) {
-      setAlert({ type: "error", message: apiErrorMessage(error, "Unable to load inventory.") });
+      alert.error(normalizeApiError(error).message);
     } finally {
       setIsLoading(false);
     }
@@ -80,7 +73,7 @@ function InventoryPage() {
       setHistoryPagination(data.pagination);
       setAppliedHistoryFilters(filters);
     } catch (error) {
-      setAlert({ type: "error", message: apiErrorMessage(error, "Unable to load stock history.") });
+      alert.error(normalizeApiError(error).message);
     } finally {
       setHistoryLoading(false);
     }
@@ -93,7 +86,7 @@ function InventoryPage() {
       try {
         setCategories((await getCategories()).filter((category) => category.status === "active"));
       } catch (error) {
-        setAlert({ type: "error", message: apiErrorMessage(error, "Unable to load categories.") });
+        alert.error(normalizeApiError(error).message);
       }
 
       await loadInventory(inventoryDefaults);
@@ -152,12 +145,13 @@ function InventoryPage() {
         reason: stockValues.reason,
       });
       setStockProduct(null);
-      setAlert({ type: "success", message: response.message });
+      alert.success(response.message || "Stock movement saved.");
       await loadInventory(appliedInventoryFilters);
       if (tab === "history") await loadHistory(appliedHistoryFilters);
     } catch (error) {
-      setStockErrors(validationErrors(error));
-      setAlert({ type: "error", message: apiErrorMessage(error, "Unable to save the stock movement.") });
+      const normalized = normalizeApiError(error);
+      setStockErrors(normalized.fieldErrors);
+      alert.error(normalized.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -172,7 +166,7 @@ function InventoryPage() {
       setProductHistory({ product, transactions: data.transactions });
     } catch (error) {
       setProductHistory(null);
-      setAlert({ type: "error", message: apiErrorMessage(error, "Unable to load product stock history.") });
+      alert.error(normalizeApiError(error).message);
     } finally {
       setProductHistoryLoading(false);
     }
@@ -199,8 +193,6 @@ function InventoryPage() {
         <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-[28px]">Inventory</h2>
         <p className="mt-2 text-sm text-slate-500">Monitor stock levels and record every manual stock movement.</p>
       </section>
-
-      <AlertMessage type={alert?.type} message={alert?.message} onDismiss={() => setAlert(null)} />
       <InventorySummary summary={summary} />
 
       <div className="flex w-fit rounded-xl border border-slate-200 bg-white p-1">

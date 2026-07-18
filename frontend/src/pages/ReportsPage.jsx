@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { exportReport, getReport, getReportOptions } from "../api/reportsApi";
-import AlertMessage from "../components/AlertMessage";
 import EmptyState from "../components/EmptyState";
 import Icon from "../components/Icon";
 import LoadingState from "../components/LoadingState";
@@ -12,6 +11,8 @@ import ReportPrintHeader from "../components/reports/ReportPrintHeader";
 import ReportSummaryCards from "../components/reports/ReportSummaryCards";
 import ReportTable from "../components/reports/ReportTable";
 import { configs } from "../components/reports/reportConfig";
+import useAlert from "../hooks/useAlert";
+import normalizeApiError from "../utils/normalizeApiError";
 function localIso(date) {
   return (
     String(date.getFullYear()) +
@@ -60,12 +61,7 @@ const emptyOptions = {
   expense_categories: [],
   suppliers: [],
 };
-function safe(error, fallback) {
-  if (error.name === "CanceledError") return "";
-  if (!error.response)
-    return "The local API could not be reached. Check that XAMPP is running.";
-  return error.response.data?.message || fallback;
-}
+// Global error normalization used instead
 function params(filters) {
   return Object.fromEntries(
     Object.entries(filters).filter(
@@ -88,7 +84,7 @@ function ReportsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [reload, setReload] = useState(0);
   const [error, setError] = useState("");
-  const [alert, setAlert] = useState(null);
+  const alert = useAlert();
   const [exporting, setExporting] = useState(false);
   const config = configs[type];
   useEffect(() => {
@@ -97,9 +93,11 @@ function ReportsPage() {
   useEffect(() => {
     getReportOptions()
       .then(setOptions)
-      .catch((e) =>
-        setError(safe(e, "Report filter options could not be loaded.")),
-      );
+      .catch((e) => {
+        if (e.name !== "CanceledError") {
+          setError(normalizeApiError(e).message);
+        }
+      });
   }, []);
   useEffect(() => {
     const timer = setTimeout(
@@ -124,8 +122,9 @@ function ReportsPage() {
         );
         setData(result);
       } catch (e) {
-        const message = safe(e, "The selected report could not be loaded.");
-        if (message) setError(message);
+        if (e.name !== "CanceledError") {
+          setError(normalizeApiError(e).message);
+        }
       } finally {
         if (!controller.signal.aborted) {
           setLoading(false);
@@ -200,15 +199,11 @@ function ReportsPage() {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      setAlert({
-        type: "success",
-        message: "Filtered report exported successfully.",
-      });
+      alert.success("Filtered report exported successfully.");
     } catch (e) {
-      setAlert({
-        type: "error",
-        message: safe(e, "Report export could not be created."),
-      });
+      if (e.name !== "CanceledError") {
+        alert.error(normalizeApiError(e).message);
+      }
     } finally {
       setExporting(false);
     }
@@ -271,11 +266,6 @@ function ReportsPage() {
           </button>
         </div>
       </header>
-      <AlertMessage
-        type={alert?.type}
-        message={alert?.message}
-        onDismiss={() => setAlert(null)}
-      />
       <div className="flex flex-col lg:grid gap-6 lg:grid-cols-[minmax(0,1fr)_240px] xl:grid-cols-[minmax(0,1fr)_260px]">
         <div className="no-print lg:order-last">
           <ReportNavigation active={type} onChange={changeType} />

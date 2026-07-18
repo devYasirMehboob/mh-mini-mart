@@ -3,7 +3,7 @@ import {
   CreditCard, DatabaseBackup, Download, Eye, KeyRound, Landmark, LayoutDashboard, LockKeyhole, LogOut,
   Menu, Package, Pause, Pencil, Plus, Printer, ReceiptText, RefreshCw, RotateCcw,
   ScanBarcode, Search, Settings, Shapes, ShoppingCart, Smartphone, Trash2,
-  TrendingUp, TriangleAlert, Users, WalletCards, Warehouse,
+  TrendingUp, TriangleAlert, Users, WalletCards, Warehouse, Bell
 } from "lucide-react";
 
 const icons = {
@@ -47,6 +47,7 @@ const icons = {
   wallet: Smartphone,
   other: CircleEllipsis,
   hold: Pause,
+  bell: Bell,
 };
 
 function Icon({ name, className = "size-5", strokeWidth = 1.8 }) {

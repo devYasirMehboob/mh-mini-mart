@@ -55,7 +55,13 @@ final class LabelController
                 
                 // Only include products that have a barcode, or we generate SVG if they do
                 if ($product['barcode']) {
-                    $svg = $this->barcodes->generateSvg($product['barcode'], $product['barcode_type'] ?: 'C128');
+                    $rawSvg = $this->barcodes->generateSvg($product['barcode'], $product['barcode_type'] ?: 'C128');
+                    // Scale using the viewBox while keeping SVG attributes valid for browsers.
+                    $svg = preg_replace(
+                        '/<svg([^>]*?)\s+width="[^"]*"([^>]*?)\s+height="[^"]*"/',
+                        '<svg$1 width="100%" $2 height="100%"',
+                        $rawSvg
+                    );
                     for ($i = 0; $i < $qty; $i++) {
                         $labels[] = [
                             'product_name' => $product['name'],
@@ -76,3 +82,4 @@ final class LabelController
         JsonResponse::success('Print data generated.', ['labels' => $labels]);
     }
 }
+

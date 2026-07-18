@@ -202,7 +202,7 @@ final class ProductRepository
     public function isLinkedToStockTransactions(int $id): bool
     {
         $statement = $this->database->connection()->prepare(
-            'SELECT COUNT(*) FROM stock_transactions WHERE product_id = :product_id'
+            'SELECT COUNT(*) FROM stock_transactions WHERE product_id = :product_id AND transaction_type != \'opening\''
         );
         $statement->execute(['product_id' => $id]);
 

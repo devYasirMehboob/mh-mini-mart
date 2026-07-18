@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { createBackup, downloadBackup, getBackups, restoreBackup } from "../api/backupsApi";
-import AlertMessage from "../components/AlertMessage";
-import EmptyState from "../components/EmptyState";
+import EmptyState from "../components/feedback/EmptyState";
 import Icon from "../components/Icon";
 import LoadingState from "../components/LoadingState";
 import Modal from "../components/Modal";
 import usePermissions from "../hooks/usePermissions";
+import useAlert from "../hooks/useAlert";
+import normalizeApiError from "../utils/normalizeApiError";
 
 function formatBytes(bytes) {
   if (bytes < 1024) return bytes + " B";
@@ -17,10 +18,7 @@ function formatDate(value) {
   return new Date(value).toLocaleString("en-PK", { dateStyle: "medium", timeStyle: "short" });
 }
 
-function messageFor(error, fallback) {
-  if (!error.response) return "The local API could not be reached. Check that XAMPP is running.";
-  return error.response.data?.message || fallback;
-}
+// Global error normalization used instead
 
 function BackupsPage() {
   const { can } = usePermissions();
@@ -29,7 +27,7 @@ function BackupsPage() {
   const [configuration, setConfiguration] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
-  const [alert, setAlert] = useState(null);
+  const alert = useAlert();
   const [restoreTarget, setRestoreTarget] = useState(null);
   const [confirmation, setConfirmation] = useState("");
 
@@ -40,7 +38,7 @@ function BackupsPage() {
       setBackups(data.backups || []);
       setConfiguration(data.configuration || null);
     } catch (error) {
-      setAlert({ type: "error", message: messageFor(error, "Backups could not be loaded.") });
+      alert.error(normalizeApiError(error).message);
     } finally {
       setLoading(false);
     }
@@ -55,10 +53,10 @@ function BackupsPage() {
     setBusy("create");
     try {
       const response = await createBackup();
-      setAlert({ type: "success", message: response.message });
+      alert.success(response.message || "Backup created.");
       await load();
     } catch (error) {
-      setAlert({ type: "error", message: messageFor(error, "The backup could not be created.") });
+      alert.error(normalizeApiError(error).message);
     } finally {
       setBusy("");
     }
@@ -75,7 +73,7 @@ function BackupsPage() {
       link.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      setAlert({ type: "error", message: messageFor(error, "The backup could not be downloaded.") });
+      alert.error(normalizeApiError(error).message);
     } finally {
       setBusy("");
     }
@@ -88,12 +86,12 @@ function BackupsPage() {
 
     try {
       const response = await restoreBackup(restoreTarget.filename, confirmation);
-      setAlert({ type: "success", message: response.message });
+      alert.success(response.message || "Backup restored.");
       setRestoreTarget(null);
       setConfirmation("");
       await load();
     } catch (error) {
-      setAlert({ type: "error", message: messageFor(error, "The backup could not be restored.") });
+      alert.error(normalizeApiError(error).message);
     } finally {
       setBusy("");
     }
@@ -111,8 +109,6 @@ function BackupsPage() {
           {busy === "create" ? "Creating..." : "Create backup"}
         </button>
       </header>
-
-      <AlertMessage type={alert?.type} message={alert?.message} onDismiss={() => setAlert(null)} />
 
       {configuration && (
         <section className="grid gap-3 sm:grid-cols-3">
