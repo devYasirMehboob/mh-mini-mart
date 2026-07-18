@@ -4,7 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig(({ command }) => ({
   plugins: [react(), tailwindcss()],
-  base: command === 'build' ? "/mh-mini-mart/frontend/dist/" : "/",
+  base: "/",
   server: {
     host: "localhost",
     port: 5173,
