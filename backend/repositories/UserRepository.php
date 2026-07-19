@@ -21,7 +21,7 @@ final class UserRepository
         $count=$this->database->connection()->prepare('SELECT COUNT(*) FROM access_credentials u'.$clause);$count->execute($params);$total=(int)$count->fetchColumn();
         $sort=['name'=>'u.name','role'=>'u.role','status'=>'u.is_active','last_login_at'=>'u.last_login_at','created_at'=>'u.created_at'][$filters['sort_by']];
         $direction=$filters['sort_direction']==='asc'?'ASC':'DESC';$offset=($filters['page']-1)*$filters['limit'];
-        $sql="SELECT u.id,u.name,u.role,IF(u.is_active=1,'active','inactive') status,u.last_login_at,u.created_at,u.updated_at FROM access_credentials u$clause ORDER BY $sort $direction,u.id $direction LIMIT :limit OFFSET :offset";
+        $sql="SELECT u.id,u.name,u.phone,u.role,IF(u.is_active=1,'active','inactive') status,u.last_login_at,u.created_at,u.updated_at FROM access_credentials u$clause ORDER BY $sort $direction,u.id $direction LIMIT :limit OFFSET :offset";
         $statement=$this->database->connection()->prepare($sql);foreach($params as$key=>$value)$statement->bindValue(':'.$key,$value);$statement->bindValue(':limit',$filters['limit'],PDO::PARAM_INT);$statement->bindValue(':offset',$offset,PDO::PARAM_INT);$statement->execute();
         return ['users'=>$statement->fetchAll(),'pagination'=>['page'=>$filters['page'],'limit'=>$filters['limit'],'total'=>$total,'total_pages'=>$total===0?0:(int)ceil($total/$filters['limit'])]];
     }
@@ -35,12 +35,12 @@ final class UserRepository
 
     public function find(int $id): ?array
     {
-        $statement=$this->database->connection()->prepare("SELECT id,name,role,IF(is_active=1,'active','inactive') status,last_login_at,created_at,updated_at FROM access_credentials WHERE id=:id");$statement->execute(['id'=>$id]);$row=$statement->fetch();return$row===false?null:$row;
+        $statement=$this->database->connection()->prepare("SELECT id,name,phone,role,IF(is_active=1,'active','inactive') status,last_login_at,created_at,updated_at FROM access_credentials WHERE id=:id");$statement->execute(['id'=>$id]);$row=$statement->fetch();return$row===false?null:$row;
     }
 
     public function sessionIdentity(int $id): ?array
     {
-        $statement=$this->database->connection()->prepare('SELECT id,name,role,is_active,last_login_at,session_version FROM access_credentials WHERE id=:id');$statement->execute(['id'=>$id]);$row=$statement->fetch();return$row===false?null:$row;
+        $statement=$this->database->connection()->prepare('SELECT id,name,phone,role,is_active,last_login_at,session_version FROM access_credentials WHERE id=:id');$statement->execute(['id'=>$id]);$row=$statement->fetch();return$row===false?null:$row;
     }
 
     public function activeLoginCandidates(): array
@@ -55,12 +55,12 @@ final class UserRepository
 
     public function create(array $data,string $hash): array
     {
-        $statement=$this->database->connection()->prepare('INSERT INTO access_credentials (name,password_hash,role,is_active) VALUES (:name,:password_hash,:role,:is_active)');$statement->execute(['name'=>$data['name'],'password_hash'=>$hash,'role'=>$data['role'],'is_active'=>$data['status']==='active'?1:0]);return$this->find((int)$this->database->connection()->lastInsertId());
+        $statement=$this->database->connection()->prepare('INSERT INTO access_credentials (name,phone,password_hash,role,is_active) VALUES (:name,:phone,:password_hash,:role,:is_active)');$statement->execute(['name'=>$data['name'],'phone'=>$data['phone'],'password_hash'=>$hash,'role'=>$data['role'],'is_active'=>$data['status']==='active'?1:0]);return$this->find((int)$this->database->connection()->lastInsertId());
     }
 
     public function update(int $id,array $data,bool $invalidateSession): array
     {
-        $statement=$this->database->connection()->prepare('UPDATE access_credentials SET name=:name,role=:role,is_active=:is_active,session_version=session_version+:bump WHERE id=:id');$active=$data['status']==='active'?1:0;$statement->execute(['name'=>$data['name'],'role'=>$data['role'],'is_active'=>$active,'bump'=>$invalidateSession?1:0,'id'=>$id]);return$this->find($id);
+        $statement=$this->database->connection()->prepare('UPDATE access_credentials SET name=:name,phone=:phone,role=:role,is_active=:is_active,session_version=session_version+:bump WHERE id=:id');$active=$data['status']==='active'?1:0;$statement->execute(['name'=>$data['name'],'phone'=>$data['phone'],'role'=>$data['role'],'is_active'=>$active,'bump'=>$invalidateSession?1:0,'id'=>$id]);return$this->find($id);
     }
 
     public function updateStatus(int $id,string $status): array

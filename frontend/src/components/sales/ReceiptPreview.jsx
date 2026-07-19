@@ -7,6 +7,13 @@ import {
 } from "../../utils/calculateSaleTotals";
 import useSettings from "../../hooks/useSettings";
 import useAlert from "../../hooks/useAlert";
+import apiClient from "../../api/apiClient";
+
+const shopImageUrl = (url) => {
+  if (!url) return "";
+  if (url.startsWith("http")) return url;
+  return `${apiClient.defaults.baseURL.replace("/api", "")}${url}`;
+};
 
 function ReceiptPreview({
   isOpen,
@@ -37,19 +44,21 @@ function ReceiptPreview({
         const html = document.getElementById("printable-receipt").outerHTML;
       const fullHtml = `<html><head><style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: monospace; background: white; color: black; font-size: 11px; }
+        body { font-family: "Jameel Noori Nastaleeq", "Noto Nastaliq Urdu", "Nafees", "Urdu Typesetting", Tahoma, Arial, sans-serif; background: white; color: black; font-size: 13px; }
         .w-full { width: 100%; } .mx-auto { margin-left: auto; margin-right: auto; }
         .text-center { text-align: center; } .text-right { text-align: right; } .text-left { text-align: left; }
         .font-bold { font-weight: bold; } .font-extrabold { font-weight: 800; } .font-black { font-weight: 900; }
         .my-3 { margin-top: 0.75rem; margin-bottom: 0.75rem; } .mb-2 { margin-bottom: 0.5rem; } .mt-2 { margin-top: 0.5rem; }
         .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; } .pb-1 { padding-bottom: 0.25rem; } .pr-2 { padding-right: 0.5rem; }
-        .border-t { border-top-width: 1px; } .border-dashed { border-style: dashed; } .border-black { border-color: black; }
+        .border-t { border-top-width: 1px; } .border-dashed { border-style: dashed; } .border-solid { border-style: solid; } .border-black { border-color: black; }
         .border-2 { border-width: 2px; } .uppercase { text-transform: uppercase; } .text-base { font-size: 1rem; }
         .flex { display: flex; } .justify-between { justify-content: space-between; } .justify-end { justify-content: flex-end; }
         .block { display: block; } .align-top { vertical-align: top; } .capitalize { text-transform: capitalize; }
         .space-y-1 > * + * { margin-top: 0.25rem; } .space-y-2 > * + * { margin-top: 0.5rem; }
         .max-h-14 { max-height: 3.5rem; } .max-w-24 { max-width: 6rem; } .object-contain { object-fit: contain; }
         .bg-white { background-color: white; } .p-4 { padding: 1rem; } .text-lg { font-size: 1.125rem; } .text-sm { font-size: 0.875rem; }
+        .text-xs { font-size: 0.75rem; } .tracking-widest { letter-spacing: 0.1em; } .mt-1 { margin-top: 0.25rem; } .mt-4 { margin-top: 1rem; } .mt-3 { margin-top: 0.75rem; } .flex-col { flex-direction: column; } .items-center { align-items: center; } .justify-center { justify-content: center; } .h-10 { height: 2.5rem; } .max-w-\\[200px\\] { max-width: 200px; }
+        .barcode-text { font-family: monospace; }
       </style></head><body>${html}</body></html>`;
       
         const { printHtmlViaQZ } = await import("../../utils/qzService");
@@ -80,11 +89,11 @@ function ReceiptPreview({
         ...(options.show_tax !== false && options.tax_show_on_receipt !== false
           ? [[options.tax_name || "ٹیکس", receipt.sale.tax_amount]]
           : []),
-        ["مجموعی رقم", receipt.sale.grand_total],
         ["وصول شدہ", receipt.sale.amount_received],
         ...(options.show_change !== false
           ? [["بقایا جات", receipt.sale.change_returned]]
           : []),
+        ["مجموعی رقم", receipt.sale.grand_total],
       ]
     : [];
 
@@ -104,7 +113,8 @@ function ReceiptPreview({
             <article
               id="printable-receipt"
               dir="rtl"
-              className="receipt-content mx-auto max-w-[300px] bg-white p-4 font-mono text-sm leading-tight text-black print:p-0"
+              style={{ fontFamily: '"Jameel Noori Nastaleeq", "Noto Nastaliq Urdu", "Nafees", "Urdu Typesetting", Tahoma, Arial, sans-serif' }}
+              className="receipt-content mx-auto max-w-[300px] bg-white p-4 text-base leading-tight text-black print:p-0"
             >
               <style>{`
                 @media print {
@@ -116,6 +126,10 @@ function ReceiptPreview({
               `}</style>
 
               <header className="text-center">
+                <p className="mb-2 text-xs font-bold">
+                  رسید نمبر: <span className="barcode-text text-sm">{receipt.sale.invoice_number}</span>
+                </p>
+
                 {options.show_logo !== false && shop.logo && (
                   <img
                     src={shopImageUrl(shop.logo)}
@@ -125,34 +139,35 @@ function ReceiptPreview({
                 )}
                 <h2 className="text-lg font-black">{shop.shop_name}</h2>
                 {shop.address && <p>{shop.address}</p>}
-                {shop.phone && <p>{shop.phone}</p>}
+                {shop.phone && <p className="barcode-text">{shop.phone}</p>}
                 {shop.registration_number && <p>{shop.registration_number}</p>}
-                <div className="my-3 border-t border-dashed border-black" />
-                <p className="font-bold">رسید نمبر: {receipt.sale.invoice_number}</p>
-                <p>{formatDateTime(receipt.sale.created_at)}</p>
-                {options.show_cashier !== false && (
-                  <p>
-                    کیشیئر: {receipt.sale.cashier_name} (
-                    {receipt.sale.cashier_role})
+                
+                <div className="my-3 border-t border-solid border-black" />
+                
+                <p className="barcode-text mb-2 text-sm font-bold tracking-wider">{formatDateTime(receipt.sale.created_at)}</p>
+                
+                {options.show_customer !== false && (receipt.sale.customer_name || receipt.sale.customer_phone) && (
+                  <p className="mb-0.5">
+                    کسٹمر: {receipt.sale.customer_name || "نامعلوم"} 
+                    {receipt.sale.customer_phone && <span className="barcode-text mr-2">({receipt.sale.customer_phone})</span>}
                   </p>
                 )}
-                {options.show_customer !== false &&
-                  receipt.sale.customer_name && (
-                    <p>کسٹمر: {receipt.sale.customer_name}</p>
-                  )}
-                {options.show_customer !== false &&
-                  receipt.sale.customer_phone && (
-                    <p>فون: {receipt.sale.customer_phone}</p>
-                  )}
+
+                {options.show_cashier !== false && (
+                  <p className="mb-0.5">
+                    کیشیئر: {receipt.sale.cashier_name}
+                    {receipt.sale.cashier_phone && <span className="barcode-text mr-2">({receipt.sale.cashier_phone})</span>}
+                  </p>
+                )}
               </header>
 
               {receipt.sale.status !== "completed" && (
-                <div className="my-3 border-2 border-black py-1 text-center text-base font-black uppercase">
+                <div className="my-3 border-2 border-solid border-black py-1 text-center text-base font-black uppercase">
                   {receipt.sale.status}
                 </div>
               )}
 
-              <div className="my-3 border-t border-dashed border-black" />
+              <div className="my-3 border-t border-solid border-black" />
               <table className="w-full text-right">
                 <thead>
                   <tr>
@@ -167,13 +182,13 @@ function ReceiptPreview({
                       <td className="py-1 pl-2">
                         {item.product_name}
                         <small className="block">
-                          فی کس {formatCurrency(item.unit_price)}
+                          فی کس <span className="barcode-text">{formatCurrency(item.unit_price)}</span>
                         </small>
                       </td>
-                      <td className="py-1 text-left align-top">
+                      <td className="py-1 text-left align-top barcode-text">
                         {Number(item.quantity)}
                       </td>
-                      <td className="py-1 text-left align-top">
+                      <td className="py-1 text-left align-top barcode-text">
                         {formatCurrency(item.line_total)}
                       </td>
                     </tr>
@@ -181,15 +196,15 @@ function ReceiptPreview({
                 </tbody>
               </table>
 
-              <div className="my-3 border-t border-dashed border-black" />
+              <div className="my-3 border-t border-solid border-black" />
               <dl className="space-y-1">
                 {totals.map(([label, value]) => (
                   <div
                     key={label}
-                    className={`flex justify-between ${label === "Grand total" ? "text-sm font-black" : ""}`}
+                    className={`flex justify-between ${label === "مجموعی رقم" ? "text-lg font-black" : ""}`}
                   >
                     <dt>{label}</dt>
-                    <dd>{formatCurrency(value)}</dd>
+                    <dd className="barcode-text">{formatCurrency(value)}</dd>
                   </div>
                 ))}
               </dl>
@@ -200,8 +215,9 @@ function ReceiptPreview({
                 </p>
               )}
 
-              <div className="my-3 border-t border-dashed border-black" />
-              <footer className="space-y-1 text-center">
+              <div className="my-3 border-t border-solid border-black" />
+              
+              <footer className="mt-3 space-y-1 text-center">
                 <p>{shop.footer}</p>
                 <p>{shop.return_policy}</p>
               </footer>

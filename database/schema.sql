@@ -274,6 +274,7 @@ ON DUPLICATE KEY UPDATE name=VALUES(name),description=VALUES(description),status
 ALTER TABLE access_credentials
     MODIFY id TINYINT UNSIGNED NOT NULL AUTO_INCREMENT,
     ADD COLUMN IF NOT EXISTS name VARCHAR(100) NOT NULL DEFAULT 'Shop User' AFTER id,
+    ADD COLUMN IF NOT EXISTS phone VARCHAR(20) NULL DEFAULT NULL AFTER name,
     ADD COLUMN IF NOT EXISTS last_login_at DATETIME NULL AFTER is_active,
     ADD COLUMN IF NOT EXISTS session_version INT UNSIGNED NOT NULL DEFAULT 1 AFTER last_login_at,
     ADD INDEX IF NOT EXISTS access_credentials_name_index (name),
