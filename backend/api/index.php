@@ -26,6 +26,7 @@ use App\Controllers\BarcodeController;
 use App\Controllers\LabelController;
 use App\Controllers\NotificationController;
 use App\Controllers\NotificationPreferenceController;
+use App\Controllers\SystemMaintenanceController;
 use App\Http\HttpException;
 use App\Http\JsonResponse;
 use App\Http\Request;
@@ -78,6 +79,7 @@ use App\Services\ReportService;
 use App\Services\ReportExportService;
 use App\Services\AuthorizationService;
 use App\Services\PasswordService;
+use App\Services\SystemMaintenanceService;
 use App\Services\UserService;
 use App\Services\RoleService;
 use App\Services\SettingsService;
@@ -192,10 +194,11 @@ try {
 
     $notificationController = new NotificationController($request, $notificationService, $session, $alertEvaluationService, $authorizationService);
     $notificationPreferenceController = new NotificationPreferenceController($request, $notificationPreferenceRepository, $session);
-    
     $authMiddleware = new AuthMiddleware($session, $authorizationService);
     $authService = new AuthService($userRepository, $permissionRepository, $activityRepository, $session);
     $authController = new AuthController($request, $authService, $authMiddleware, $session);
+    $systemMaintenanceService = new SystemMaintenanceService($database, $userRepository, $activityRepository);
+    $systemMaintenanceController = new SystemMaintenanceController($request, $systemMaintenanceService, $session);
     $userController = new UserController(
         $request,
         new UserService($userRepository, $roleRepository, $permissionRepository, $activityRepository, new UserValidator(), new PasswordService($userRepository)),
@@ -379,6 +382,10 @@ $inventoryController = new InventoryController(
 
     if ($method === 'POST' && $path === '/auth/logout') {
         $authController->logout();
+    }
+
+    if ($method === 'POST' && $path === '/system/reset-database') {
+        $systemMaintenanceController->resetDatabase($authenticatedUser);
     }
 
     if (str_starts_with($path, '/users')) {

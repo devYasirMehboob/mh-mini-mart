@@ -9,7 +9,7 @@ import NotificationBell from "../components/notifications/NotificationBell";
 const groups = [
   {
     label: "Main", items: [
-      { label: "Dashboard", path: "/dashboard", icon: "dashboard", description: "Shop overview", permission: "dashboard.view" },
+      { label: "Dashboard", path: "/dashboard", icon: "dashboard", description: "Shop overview" },
       { label: "Point of Sale", path: "/pos", icon: "pos", description: "Billing workspace", badge: "POS", permission: "pos.access" },
       { label: "Sales", path: "/sales", icon: "sales", description: "Orders and receipts", permission: "sales.view" },
     ]
@@ -42,7 +42,7 @@ function AppLayout() {
   const { can } = usePermissions();
   const { settings } = useSettings();
   const shop = settings?.shop || {};
-  const visibleGroups = groups.map((group) => ({ ...group, items: group.items.filter((item) => can(item.permission)) })).filter((group) => group.items.length);
+  const visibleGroups = groups.map((group) => ({ ...group, items: group.items.filter((item) => !item.permission || can(item.permission)) })).filter((group) => group.items.length);
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);

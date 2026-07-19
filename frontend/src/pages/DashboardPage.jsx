@@ -9,6 +9,7 @@ import PaymentMethodSummary from "../components/dashboard/PaymentMethodSummary";
 import RecentSalesTable from "../components/dashboard/RecentSalesTable";
 import SalesBarChart from "../components/dashboard/SalesBarChart";
 import SummaryCards from "../components/dashboard/SummaryCards";
+import ResetDatabaseCard from "../components/dashboard/ResetDatabaseCard";
 import { formatCurrency } from "../utils/calculateSaleTotals";
 
 function safeErrorMessage(error) {
@@ -87,6 +88,12 @@ function DashboardPage() {
       </section>
 
       {dashboard.permissions.view_financials && <PaymentMethodSummary methods={dashboard.payment_methods} />}
+      
+      {dashboard.permissions.view_financials && (
+        <div className="mt-8">
+          <ResetDatabaseCard />
+        </div>
+      )}
     </div>
   );
 }

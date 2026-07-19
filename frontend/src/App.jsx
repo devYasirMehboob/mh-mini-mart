@@ -35,7 +35,7 @@ function App() {
     <Route element={<ProtectedRoute />}>
       <Route element={<AppLayout />}>
         <Route index element={<Navigate to="/pos" replace />} />
-        <Route path="dashboard" element={permitted("dashboard.view", <DashboardPage />)} />
+        <Route path="dashboard" element={<DashboardPage />} />
         <Route path="pos" element={permitted("pos.access", <PosPage />)} />
         <Route path="sales" element={permitted("sales.view", <SalesPage />)} />
         <Route path="categories" element={permitted("categories.manage", <CategoriesPage />)} />
