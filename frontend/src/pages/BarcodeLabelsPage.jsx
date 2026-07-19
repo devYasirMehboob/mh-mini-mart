@@ -24,7 +24,7 @@ function generatePrintHtml(labels) {
           .barcode-strip {
             display: block;
             width: 100%;
-            margin: 5px;
+            margin: 0;
             padding: 0;
           }
           .barcode-card {
@@ -33,11 +33,8 @@ function generatePrintHtml(labels) {
             align-items: center;
             justify-content: center;
             width: 100%;
-            height: 100vh;
-            margin: 0;
-            padding: 0;
+            padding: 2px 0;
             box-sizing: border-box;
-            overflow: hidden;
             page-break-after: always;
             break-after: page;
           }
