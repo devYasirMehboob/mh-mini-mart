@@ -18,6 +18,11 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Install Composer Dependencies
+        run: |
+          cd backend
+          composer install --no-dev --optimize-autoloader
+
       - name: Deploy Backend to store same-origin API
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
