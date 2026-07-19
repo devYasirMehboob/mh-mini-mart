@@ -15,7 +15,7 @@ final class ProductRepository
 
     public function paginate(array $filters): array
     {
-        $where = [];
+        $where = ['p.deleted_at IS NULL'];
         $parameters = [];
 
         if ($filters['search'] !== '') {
@@ -86,7 +86,7 @@ final class ProductRepository
                     p.track_stock, p.status, p.created_at, p.updated_at
              FROM products p
              INNER JOIN categories c ON c.id = p.category_id
-             WHERE p.id = :id
+             WHERE p.id = :id AND p.deleted_at IS NULL
              LIMIT 1'
         );
         $statement->execute(['id' => $id]);
@@ -208,10 +208,13 @@ final class ProductRepository
 
         return (int) $statement->fetchColumn() > 0;
     }
-    public function delete(int $id): void
+    public function softDelete(int $id): void
     {
         $statement = $this->database->connection()->prepare(
-            'DELETE FROM products WHERE id = :id'
+            'UPDATE products SET deleted_at = CURRENT_TIMESTAMP, 
+                barcode = IF(barcode IS NULL, NULL, CONCAT(barcode, "-del-", id)), 
+                product_code = CONCAT(product_code, "-del-", id) 
+            WHERE id = :id'
         );
         $statement->execute(['id' => $id]);
     }
@@ -221,7 +224,7 @@ final class ProductRepository
         if ($ids === []) return [];
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $statement = $this->database->connection()->prepare(
-            'SELECT id, name, product_code, barcode, barcode_type, barcode_source, selling_price, purchase_cost, quantity, unit_type, track_stock, status FROM products WHERE id IN (' . $placeholders . ') ORDER BY id FOR UPDATE'
+            'SELECT id, name, product_code, barcode, barcode_type, barcode_source, selling_price, purchase_cost, quantity, unit_type, track_stock, status FROM products WHERE id IN (' . $placeholders . ') AND deleted_at IS NULL ORDER BY id FOR UPDATE'
         );
         foreach (array_values($ids) as $index => $id) $statement->bindValue($index + 1, $id, PDO::PARAM_INT);
         $statement->execute();
@@ -279,7 +282,8 @@ final class ProductRepository
         $statement = $this->database->connection()->prepare(
             'SELECT COUNT(*) FROM products
              WHERE ' . $column . ' = :value
-               AND (:ignore_id IS NULL OR id <> :ignore_id_value)'
+               AND (:ignore_id IS NULL OR id <> :ignore_id_value)
+               AND deleted_at IS NULL'
         );
         $statement->execute([
             'value' => $value,

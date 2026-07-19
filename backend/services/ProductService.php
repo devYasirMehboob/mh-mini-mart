@@ -185,19 +185,7 @@ final class ProductService
     {
         $product = $this->findOrFail($id);
 
-        if ($this->products->isLinkedToSales($id)) {
-            throw new HttpException('This product has sale history and cannot be deleted. Deactivate it instead.', 409);
-        }
-        if ($this->products->isLinkedToPurchases($id)) {
-            throw new HttpException('This product has purchase history and cannot be deleted. Deactivate it instead.', 409);
-        }
-        if ($this->products->isLinkedToStockTransactions($id)) {
-            throw new HttpException('This product has stock history and cannot be deleted. Deactivate it instead.', 409);
-        }
-
-        $this->stockTransactions->deleteByProduct($id);
-        $this->products->delete($id);
-        $this->images->delete($product['image']);
+        $this->products->softDelete($id);
         $this->activity->log($userId, 'product.deleted', 'Product ' . $product['name'] . ' deleted.');
     }
 

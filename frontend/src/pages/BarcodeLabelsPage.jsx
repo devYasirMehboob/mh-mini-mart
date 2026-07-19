@@ -26,7 +26,7 @@ function generatePrintHtml(labels) {
             flex-direction: column;
             align-items: center;
             width: 100%;
-            padding: 10px 0;
+            padding: 2px 0;
           }
           .barcode-card {
             display: flex;
@@ -34,7 +34,7 @@ function generatePrintHtml(labels) {
             align-items: center;
             justify-content: center;
             width: 100%;
-            margin-bottom: 20px; /* Spacing between barcodes on continuous rolls */
+            margin-bottom: 3px;
             page-break-inside: avoid;
             break-inside: avoid;
           }
