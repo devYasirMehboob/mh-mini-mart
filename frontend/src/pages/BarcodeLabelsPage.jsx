@@ -22,11 +22,10 @@ function generatePrintHtml(labels) {
             @page { margin: 0; size: auto; }
           }
           .barcode-strip {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            display: block;
             width: 100%;
-            padding: 2px 0;
+            margin: 0;
+            padding: 0;
           }
           .barcode-card {
             display: flex;
@@ -34,9 +33,13 @@ function generatePrintHtml(labels) {
             align-items: center;
             justify-content: center;
             width: 100%;
-            margin-bottom: 3px;
-            page-break-inside: avoid;
-            break-inside: avoid;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            overflow: hidden;
+            page-break-after: always;
+            break-after: page;
           }
           .barcode-svg {
             width: 60% !important;
