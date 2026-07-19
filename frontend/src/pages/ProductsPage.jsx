@@ -22,6 +22,7 @@ import ProductDetails from "../components/products/ProductDetails";
 import ProductForm from "../components/products/ProductForm";
 import ProductTable from "../components/products/ProductTable";
 import usePermissions from "../hooks/usePermissions";
+import useGlobalBarcodeScanner from "../hooks/useGlobalBarcodeScanner";
 
 const emptyForm = {
   category_id: "",
@@ -113,6 +114,28 @@ function ProductsPage() {
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, canCreate, categories.length, navigate]);
+
+  useGlobalBarcodeScanner(async (barcode) => {
+    if (formMode !== null || detailsProduct !== null) return;
+    
+    try {
+      const data = await getProducts({ search: barcode, limit: 1 });
+      const found = data.products.find(p => p.barcode === barcode || p.product_code === barcode);
+      
+      if (found) {
+        setFilters((f) => ({ ...f, search: barcode, page: 1 }));
+        loadProducts({ ...appliedFilters, search: barcode, page: 1 });
+      } else {
+        if (canCreate) {
+          openCreateForm(barcode);
+        } else {
+          alert.error(`No product found for ${barcode}.`);
+        }
+      }
+    } catch (error) {
+      alert.error(normalizeApiError(error).message);
+    }
+  });
 
   function openCreateForm(initialBarcode = "") {
     setEditingProduct(null);
