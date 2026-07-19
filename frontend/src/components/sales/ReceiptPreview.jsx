@@ -156,7 +156,6 @@ function ReceiptPreview({
                 {options.show_cashier !== false && (
                   <p className="mb-0.5">
                     کیشیئر: {receipt.sale.cashier_name}
-                    {receipt.sale.cashier_phone && <span className="barcode-text mr-2">({receipt.sale.cashier_phone})</span>}
                   </p>
                 )}
               </header>

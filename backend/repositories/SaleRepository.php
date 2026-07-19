@@ -70,7 +70,7 @@ final class SaleRepository
     public function findDetail(int $id): ?array
     {
         $statement=$this->database->connection()->prepare(
-            'SELECT s.*,ac.name AS cashier_name,ac.phone AS cashier_phone,ac.role AS cashier_role,
+            'SELECT s.*,ac.name AS cashier_name,ac.role AS cashier_role,
                     cancelled.role AS cancelled_by_role
              FROM sales s INNER JOIN access_credentials ac ON ac.id=s.cashier_id
              LEFT JOIN access_credentials cancelled ON cancelled.id=s.cancelled_by
