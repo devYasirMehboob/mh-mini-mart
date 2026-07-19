@@ -34,7 +34,7 @@ function generatePrintHtml(labels) {
             justify-content: center;
             width: 100%;
             height: 100vh;
-            margin: 0;
+            margin: 5px;
             padding: 0;
             box-sizing: border-box;
             overflow: hidden;
@@ -69,12 +69,16 @@ function generatePrintHtml(labels) {
       </head>
       <body>
         <div class="barcode-strip">
-          ${labels.map(label => `
+          ${labels
+            .map(
+              (label) => `
             <div class="barcode-card">
               <div class="barcode-svg">${label.svg}</div>
               <div class="barcode-digits">${label.barcode}</div>
             </div>
-          `).join("")}
+          `,
+            )
+            .join("")}
         </div>
       </body>
     </html>
@@ -94,7 +98,8 @@ function printLabelsInBrowser(labels) {
     document.body.appendChild(iframe);
 
     const frameWindow = iframe.contentWindow;
-    const frameDocument = iframe.contentDocument || iframe.contentWindow?.document;
+    const frameDocument =
+      iframe.contentDocument || iframe.contentWindow?.document;
 
     if (!frameWindow || !frameDocument) {
       iframe.remove();
@@ -122,7 +127,11 @@ export default function BarcodeLabelsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({ page: 1, total_pages: 1, total: 0 });
+  const [pagination, setPagination] = useState({
+    page: 1,
+    total_pages: 1,
+    total: 0,
+  });
   const [selectedItems, setSelectedItems] = useState({});
   const [isGenerating, setIsGenerating] = useState(false);
   const alert = useAlert();
@@ -133,35 +142,40 @@ export default function BarcodeLabelsPage() {
     document.title = "Print Barcode Labels | MH Mini Mart";
   }, []);
 
-
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
-    apiClient.get("/barcode-labels/products", {
-      params: { search, page, limit: 20 },
-      signal: controller.signal
-    })
-    .then(response => {
-      setProducts(response.data.data.products);
-      setPagination(response.data.data.pagination);
-    })
-    .catch(error => {
-      if (error.code !== "ERR_CANCELED") {
-        setPageError(normalizeApiError(error));
-      }
-    })
-    .finally(() => {
-      if (!controller.signal.aborted) setLoading(false);
-    });
+    apiClient
+      .get("/barcode-labels/products", {
+        params: { search, page, limit: 20 },
+        signal: controller.signal,
+      })
+      .then((response) => {
+        setProducts(response.data.data.products);
+        setPagination(response.data.data.pagination);
+      })
+      .catch((error) => {
+        if (error.code !== "ERR_CANCELED") {
+          setPageError(normalizeApiError(error));
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
 
     return () => controller.abort();
   }, [search, page]);
 
   const handleSelect = (product, quantity) => {
-    setSelectedItems(prev => {
+    setSelectedItems((prev) => {
       const next = { ...prev };
       if (quantity > 0) {
-        next[product.id] = { product_id: product.id, name: product.name, barcode: product.barcode, quantity };
+        next[product.id] = {
+          product_id: product.id,
+          name: product.name,
+          barcode: product.barcode,
+          quantity,
+        };
       } else {
         delete next[product.id];
       }
@@ -170,32 +184,44 @@ export default function BarcodeLabelsPage() {
   };
 
   const handlePrint = async () => {
-    const items = Object.values(selectedItems).filter(item => item.quantity > 0);
+    const items = Object.values(selectedItems).filter(
+      (item) => item.quantity > 0,
+    );
     if (items.length === 0) {
       return alert.error("Select at least one product to print.");
     }
 
-    const unbarcoded = items.filter(i => !i.barcode);
+    const unbarcoded = items.filter((i) => !i.barcode);
     if (unbarcoded.length > 0) {
-      return alert.error(`Product "${unbarcoded[0].name}" does not have a barcode. Assign one first.`);
+      return alert.error(
+        `Product "${unbarcoded[0].name}" does not have a barcode. Assign one first.`,
+      );
     }
 
     setIsGenerating(true);
     try {
-      const response = await apiClient.post("/barcode-labels/print-data", { items });
+      const response = await apiClient.post("/barcode-labels/print-data", {
+        items,
+      });
       const generatedLabels = response.data.data.labels || [];
       if (generatedLabels.length === 0) {
-        throw new Error("No barcode labels were generated for the selected products.");
+        throw new Error(
+          "No barcode labels were generated for the selected products.",
+        );
       }
-      
+
       const printingMethod = settings?.printer?.printing_method || "browser";
 
       if (printingMethod === "qz") {
-        const printerName = settings?.printer?.label_printer_name || settings?.printer?.printer_name;
+        const printerName =
+          settings?.printer?.label_printer_name ||
+          settings?.printer?.printer_name;
         if (!printerName) {
-          throw new Error("Label printer name is not configured in settings. Please go to Settings > Printer to configure it.");
+          throw new Error(
+            "Label printer name is not configured in settings. Please go to Settings > Printer to configure it.",
+          );
         }
-        
+
         await printHtmlViaQZ(printerName, generatePrintHtml(generatedLabels));
         alert.success("Labels sent to printer successfully.");
       } else {
@@ -214,8 +240,12 @@ export default function BarcodeLabelsPage() {
       <div className="space-y-6 print:hidden">
         <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Print Labels</h1>
-            <p className="mt-1 text-sm text-slate-500">Select products and quantities to print barcode labels.</p>
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
+              Print Labels
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Select products and quantities to print barcode labels.
+            </p>
           </div>
           <button
             onClick={handlePrint}
@@ -231,17 +261,23 @@ export default function BarcodeLabelsPage() {
           <section className="premium-surface overflow-hidden rounded-xl">
             <div className="border-b border-slate-100 p-4">
               <label className="relative">
-                <Icon name="search" className="absolute left-3.5 top-2.5 size-4 text-slate-400" />
+                <Icon
+                  name="search"
+                  className="absolute left-3.5 top-2.5 size-4 text-slate-400"
+                />
                 <input
                   type="text"
                   value={search}
-                  onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
                   placeholder="Search products..."
                   className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-3 text-sm focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
                 />
               </label>
             </div>
-            
+
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 text-slate-500">
@@ -253,21 +289,46 @@ export default function BarcodeLabelsPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {loading ? (
-                    <tr><td colSpan="3" className="px-4 py-8 text-center text-slate-500">Loading products...</td></tr>
+                    <tr>
+                      <td
+                        colSpan="3"
+                        className="px-4 py-8 text-center text-slate-500"
+                      >
+                        Loading products...
+                      </td>
+                    </tr>
                   ) : products.length === 0 ? (
-                    <tr><td colSpan="3" className="px-4 py-8 text-center text-slate-500">No products found.</td></tr>
+                    <tr>
+                      <td
+                        colSpan="3"
+                        className="px-4 py-8 text-center text-slate-500"
+                      >
+                        No products found.
+                      </td>
+                    </tr>
                   ) : (
-                    products.map(product => (
-                      <tr key={product.id} className="transition hover:bg-slate-50">
+                    products.map((product) => (
+                      <tr
+                        key={product.id}
+                        className="transition hover:bg-slate-50"
+                      >
                         <td className="px-4 py-3">
-                          <div className="font-bold text-slate-900">{product.name}</div>
-                          <div className="text-xs text-slate-500">{product.product_code}</div>
+                          <div className="font-bold text-slate-900">
+                            {product.name}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {product.product_code}
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           {product.barcode ? (
-                            <span className="inline-block rounded bg-slate-100 px-2 py-1 text-xs font-mono text-slate-700">{product.barcode}</span>
+                            <span className="inline-block rounded bg-slate-100 px-2 py-1 text-xs font-mono text-slate-700">
+                              {product.barcode}
+                            </span>
                           ) : (
-                            <span className="text-xs text-amber-600">No barcode</span>
+                            <span className="text-xs text-amber-600">
+                              No barcode
+                            </span>
                           )}
                         </td>
                         <td className="px-4 py-3">
@@ -276,7 +337,12 @@ export default function BarcodeLabelsPage() {
                             min="0"
                             max="500"
                             value={selectedItems[product.id]?.quantity || ""}
-                            onChange={(e) => handleSelect(product, parseInt(e.target.value) || 0)}
+                            onChange={(e) =>
+                              handleSelect(
+                                product,
+                                parseInt(e.target.value) || 0,
+                              )
+                            }
                             disabled={!product.barcode}
                             className="w-20 rounded-md border border-slate-300 px-2 py-1 text-sm disabled:bg-slate-100 disabled:opacity-50"
                             placeholder="0"
@@ -291,26 +357,49 @@ export default function BarcodeLabelsPage() {
 
             {pagination.total_pages > 1 && (
               <div className="flex items-center justify-between border-t border-slate-100 p-4">
-                <span className="text-xs text-slate-500">Showing page {pagination.page} of {pagination.total_pages}</span>
+                <span className="text-xs text-slate-500">
+                  Showing page {pagination.page} of {pagination.total_pages}
+                </span>
                 <div className="flex gap-2">
-                  <button onClick={() => setPage(p => p - 1)} disabled={page <= 1} className="rounded border px-3 py-1 text-xs font-medium disabled:opacity-50">Prev</button>
-                  <button onClick={() => setPage(p => p + 1)} disabled={page >= pagination.total_pages} className="rounded border px-3 py-1 text-xs font-medium disabled:opacity-50">Next</button>
+                  <button
+                    onClick={() => setPage((p) => p - 1)}
+                    disabled={page <= 1}
+                    className="rounded border px-3 py-1 text-xs font-medium disabled:opacity-50"
+                  >
+                    Prev
+                  </button>
+                  <button
+                    onClick={() => setPage((p) => p + 1)}
+                    disabled={page >= pagination.total_pages}
+                    className="rounded border px-3 py-1 text-xs font-medium disabled:opacity-50"
+                  >
+                    Next
+                  </button>
                 </div>
               </div>
             )}
           </section>
 
           <aside className="premium-surface h-fit rounded-xl p-5">
-            <h3 className="mb-4 text-sm font-bold text-slate-900">Selected for Printing</h3>
+            <h3 className="mb-4 text-sm font-bold text-slate-900">
+              Selected for Printing
+            </h3>
             {Object.values(selectedItems).length === 0 ? (
               <p className="text-xs text-slate-500">No items selected.</p>
             ) : (
               <ul className="space-y-3">
-                {Object.values(selectedItems).map(item => (
-                  <li key={item.product_id} className="flex items-start justify-between text-sm">
+                {Object.values(selectedItems).map((item) => (
+                  <li
+                    key={item.product_id}
+                    className="flex items-start justify-between text-sm"
+                  >
                     <div>
-                      <div className="font-semibold text-slate-800">{item.name}</div>
-                      <div className="text-xs text-slate-500">{item.barcode}</div>
+                      <div className="font-semibold text-slate-800">
+                        {item.name}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {item.barcode}
+                      </div>
                     </div>
                     <div className="rounded bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
                       x {item.quantity}
@@ -320,25 +409,31 @@ export default function BarcodeLabelsPage() {
               </ul>
             )}
 
-            <h3 className="mb-4 mt-8 text-sm font-bold text-slate-900">Label Preview</h3>
+            <h3 className="mb-4 mt-8 text-sm font-bold text-slate-900">
+              Label Preview
+            </h3>
             <div className="flex flex-col items-center justify-center border border-dashed border-slate-300 bg-white p-2 text-black w-full h-[1.5in] mt-2 relative">
               {Object.values(selectedItems).length === 0 ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-slate-50/50 backdrop-blur-[1px]">
-                  <p className="text-xs text-slate-500 font-medium">Select a product to preview</p>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Select a product to preview
+                  </p>
                 </div>
               ) : null}
-              
+
               <div className="flex w-full justify-between px-1 text-xs font-bold mb-1">
                 <span className="truncate w-3/4 text-left">
-                  {Object.values(selectedItems).length > 0 ? Object.values(selectedItems)[0].name : "Product Name"}
+                  {Object.values(selectedItems).length > 0
+                    ? Object.values(selectedItems)[0].name
+                    : "Product Name"}
                 </span>
                 <span className="w-1/4 text-right">Price</span>
               </div>
               <div className="w-full flex-1 flex items-center justify-center overflow-hidden py-1">
                 {Object.values(selectedItems).length > 0 ? (
-                  <img 
-                    src={`${apiClient.defaults.baseURL}/barcode/image/${Object.values(selectedItems)[0].barcode}`} 
-                    alt="Barcode preview" 
+                  <img
+                    src={`${apiClient.defaults.baseURL}/barcode/image/${Object.values(selectedItems)[0].barcode}`}
+                    alt="Barcode preview"
                     className="h-full w-full object-contain"
                   />
                 ) : (
@@ -348,7 +443,9 @@ export default function BarcodeLabelsPage() {
                 )}
               </div>
               <div className="text-[10px] font-mono tracking-widest mt-0.5 min-h-[15px]">
-                {Object.values(selectedItems).length > 0 ? Object.values(selectedItems)[0].barcode : "00000000000"}
+                {Object.values(selectedItems).length > 0
+                  ? Object.values(selectedItems)[0].barcode
+                  : "00000000000"}
               </div>
             </div>
           </aside>
@@ -357,4 +454,3 @@ export default function BarcodeLabelsPage() {
     </>
   );
 }
-
