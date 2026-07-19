@@ -43,7 +43,6 @@ CREATE TABLE IF NOT EXISTS products (
     image VARCHAR(255) NULL,
     track_stock TINYINT(1) NOT NULL DEFAULT 1,
     status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
-    deleted_at TIMESTAMP NULL DEFAULT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY products_code_unique (product_code),
