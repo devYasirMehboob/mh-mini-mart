@@ -39,8 +39,8 @@ function generatePrintHtml(labels) {
             break-inside: avoid;
           }
           .barcode-svg {
-            width: 80% !important;
-            max-width: 220px;
+            width: 60% !important;
+            max-width: 140px;
             height: auto;
             display: flex;
             justify-content: center;
@@ -49,13 +49,13 @@ function generatePrintHtml(labels) {
           .barcode-svg svg {
             width: 100% !important;
             height: auto !important;
-            max-height: 48px;
+            max-height: 32px;
             display: block;
             shape-rendering: crispEdges;
           }
           .barcode-digits {
-            margin-top: 4px;
-            font-size: 11px;
+            margin-top: 3px;
+            font-size: 10px;
             font-weight: bold;
             text-align: center;
             letter-spacing: 1px;
