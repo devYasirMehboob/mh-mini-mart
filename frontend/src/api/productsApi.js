@@ -38,14 +38,16 @@ export async function deleteProduct(id) {
 export function productImageUrl(path) {
   if (!path) return null;
 
-  const baseUrl = import.meta.env.VITE_API_BASE_URL.replace(/\/api\/?$/, "");
+  let baseUrl = import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, "");
   
-  // If the baseUrl is exactly the domain root, it means the API is mapped directly 
-  // (like https://store.mhminimart.com/api). On a live server structured like this, 
-  // the uploads folder is typically located in /backend/uploads
-  if (baseUrl === "https://store.mhminimart.com" || baseUrl === "http://store.mhminimart.com") {
-      return baseUrl + "/backend/" + path.replace(/^\/+/, "");
+  // Locally, the API is in /backend/api, but uploads are in /backend/uploads
+  if (baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1")) {
+      baseUrl = baseUrl.replace(/\/api$/, "");
+      return baseUrl + "/" + path.replace(/^\/+/, "");
   }
 
+  // On the live server, the entire backend is deployed into the /api folder
+  // So both the API entry point and the uploads folder exist under /api
+  // Therefore, we don't strip /api from the baseUrl on the live server.
   return baseUrl + "/" + path.replace(/^\/+/, "");
 }
