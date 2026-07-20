@@ -15,13 +15,14 @@ final class StockTransactionRepository
 
     public function create(array $data): array
     {
+        $data['batch_id'] = $data['batch_id'] ?? null;
         $statement = $this->database->connection()->prepare(
             'INSERT INTO stock_transactions (
                 product_id, user_id, transaction_type, quantity,
-                previous_stock, new_stock, reason, reference_type, reference_id
+                previous_stock, new_stock, reason, reference_type, reference_id, batch_id
              ) VALUES (
                 :product_id, :user_id, :transaction_type, :quantity,
-                :previous_stock, :new_stock, :reason, :reference_type, :reference_id
+                :previous_stock, :new_stock, :reason, :reference_type, :reference_id, :batch_id
              )'
         );
         $statement->execute($data);

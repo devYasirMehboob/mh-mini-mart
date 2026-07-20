@@ -11,15 +11,19 @@ import {
   loginUser,
   logoutUser,
 } from "../api/authApi";
+import { logger } from "../utils/logger";
+
 const AuthContext = createContext(null);
+
 function getSafeErrorMessage(error, fallback) {
   if (!error.response) {
-    if (import.meta.env.DEV) console.warn("API_NETWORK_ERROR", error);
+    logger.warn("API_NETWORK_ERROR", error);
     return "The server could not be reached. Please check the API server or hosting security settings.";
   }
-  if (import.meta.env.DEV) console.warn("API_ERROR_RESPONSE", error.response);
+  logger.warn("API_ERROR_RESPONSE", error.response);
   return error.response.data?.message || fallback;
 }
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);

@@ -115,8 +115,11 @@ function ProductForm({
             </div>
             <div>
               <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="product-quantity">Quantity</label>
-              <input className={inputClasses(errors.quantity)} id="product-quantity" name="quantity" type="number" min="0" step="0.001" value={values.quantity} onChange={onChange} disabled={isSubmitting || !values.track_stock || isEdit} />
+              <input className={inputClasses(errors.quantity)} id="product-quantity" name="quantity" type="number" min="0" step="0.001" value={values.quantity} onChange={onChange} disabled={isSubmitting || !values.track_stock || values.track_batches || values.track_expiry || isEdit} />
               {isEdit && <p className="mt-1.5 text-xs text-slate-400">Use Inventory to record quantity changes.</p>}
+              {!isEdit && (values.track_batches || values.track_expiry) && (
+                <p className="mt-1.5 text-xs text-orange-500">Initial quantity must be 0. Use Purchases to add stock so you can enter the expiry date and batch number.</p>
+              )}
               <FieldError message={errors.quantity} />
             </div>
             <div>
@@ -130,6 +133,20 @@ function ProductForm({
             <span>
               <strong className="block text-sm font-semibold text-slate-700">Track product stock</strong>
               <span className="mt-0.5 block text-xs text-slate-500">Disable this for services or products without inventory limits.</span>
+            </span>
+          </label>
+          <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+            <input className="size-4 accent-emerald-600" name="track_batches" type="checkbox" checked={values.track_batches || false} onChange={onChange} disabled={isSubmitting || !values.track_stock} />
+            <span>
+              <strong className="block text-sm font-semibold text-slate-700">Track product batches</strong>
+              <span className="mt-0.5 block text-xs text-slate-500">Require batch numbers when receiving stock. Requires stock tracking.</span>
+            </span>
+          </label>
+          <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+            <input className="size-4 accent-emerald-600" name="track_expiry" type="checkbox" checked={values.track_expiry || false} onChange={onChange} disabled={isSubmitting || !values.track_stock} />
+            <span>
+              <strong className="block text-sm font-semibold text-slate-700">Track expiry dates</strong>
+              <span className="mt-0.5 block text-xs text-slate-500">Require expiry dates when receiving stock. Requires stock tracking.</span>
             </span>
           </label>
           <FieldError message={errors.track_stock} />

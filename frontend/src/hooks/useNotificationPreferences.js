@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import * as api from "../api/notifications";
+import { logger } from "../utils/logger";
 
 export default function useNotificationPreferences() {
   const [preferences, setPreferences] = useState({});
@@ -13,7 +14,7 @@ export default function useNotificationPreferences() {
         setPreferences(response.data.preferences);
       }
     } catch (err) {
-      console.error("Failed to fetch preferences", err);
+      logger.error("Failed to fetch preferences", err);
     } finally {
       setIsLoading(false);
     }

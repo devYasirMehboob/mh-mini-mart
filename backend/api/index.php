@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Config\Database;
+use App\Config\DebugConfig;
+use App\Services\Logger;
 use App\Controllers\AuthController;
 use App\Controllers\BackupController;
 use App\Controllers\CategoryController;
@@ -27,6 +29,7 @@ use App\Controllers\LabelController;
 use App\Controllers\NotificationController;
 use App\Controllers\NotificationPreferenceController;
 use App\Controllers\SystemMaintenanceController;
+use App\Controllers\BatchController;
 use App\Http\HttpException;
 use App\Http\JsonResponse;
 use App\Http\Request;
@@ -56,6 +59,7 @@ use App\Repositories\SupplierRepository;
 use App\Repositories\PurchaseRepository;
 use App\Repositories\PurchaseItemRepository;
 use App\Repositories\PurchasePaymentRepository;
+use App\Repositories\BatchRepository;
 use App\Repositories\PurchaseReturnRepository;
 use App\Repositories\NotificationRepository;
 use App\Repositories\NotificationPreferenceRepository;
@@ -141,13 +145,27 @@ if (is_file($backendComposerAutoload)) {
 }
 require_once __DIR__ . '/../autoload.php';
 
+$debugEnabled = DebugConfig::isEnabled();
+error_reporting(E_ALL);
+ini_set('display_errors', $debugEnabled ? '1' : '0');
+ini_set('display_startup_errors', $debugEnabled ? '1' : '0');
+ini_set('log_errors', '1');
+
+$requestId = bin2hex(random_bytes(4));
+$GLOBALS['MH_REQUEST_ID'] = $requestId;
+header('X-Request-ID: ' . $requestId);
+
+$logger = new Logger();
+
 $localConfig = __DIR__ . '/../config/database.local.php';
 $configFile = is_file($localConfig)
     ? $localConfig
     : __DIR__ . '/../config/database.example.php';
 
+$startTime = microtime(true);
+
 try {
-    $database = new Database(require $configFile);
+    $database = new Database(require $configFile, $logger);
     $request = new Request();
     $session = new SessionManager();
     $session->start();
@@ -230,7 +248,8 @@ try {
         new StockTransactionRepository($database),
         new PurchaseValidator(),
         $activityRepository,
-        $configuration
+        $configuration,
+        new BatchRepository($database)
     );
     $purchaseController = new PurchaseController($request, $purchaseService, new PurchaseExportService(), $session);
     $purchaseReturnController = new PurchaseReturnController(
@@ -290,6 +309,15 @@ $inventoryController = new InventoryController(
         $session
     );
 
+    $batchController = new \App\Controllers\BatchController(
+        $request,
+        new BatchRepository($database),
+        new ProductRepository($database),
+        new StockTransactionRepository($database),
+        $database,
+        $logger
+    );
+
     $posProductRepository = new PosProductRepository($database);
     $heldSaleRepository = new HeldSaleRepository($database);
     $posController = new PosController($request, new PosService($posProductRepository));
@@ -310,7 +338,9 @@ $inventoryController = new InventoryController(
             new StockTransactionRepository($database),
             new SaleValidator(),
             $configuration,
-            $activityRepository
+            $activityRepository,
+            new \App\Services\BatchAllocationService(new BatchRepository($database)),
+            new BatchRepository($database)
         ),
         $salesExportService,
         $session
@@ -340,6 +370,16 @@ $inventoryController = new InventoryController(
         new DashboardService(new DashboardRepository($database))
     );
 
+    $batchRepository = new BatchRepository($database);
+    $batchController = new BatchController(
+        $request,
+        $batchRepository,
+        new ProductRepository($database),
+        new StockTransactionRepository($database),
+        $database,
+        $logger
+    );
+
     $method = $request->method();
     $path = $request->path();
 
@@ -348,6 +388,13 @@ $inventoryController = new InventoryController(
             'CSRF token created.',
             ['csrfToken' => $session->csrfToken()]
         );
+    }
+
+    if ($method === 'GET' && $path === '/app-config') {
+        JsonResponse::success('Configuration loaded', [
+            'debug' => DebugConfig::isEnabled(),
+            'version' => '1.0.0'
+        ]);
     }
 
     if ($method === 'POST' && $path === '/auth/login') {
@@ -582,6 +629,46 @@ if (str_starts_with($path, '/products')) {
         }
     }
 
+    if (str_starts_with($path, '/batches')) {
+        // $authorizationService->requirePermission($authenticatedUser, 'inventory.view');
+        
+        if ($method === 'GET' && $path === '/batches') {
+            $batchController->index();
+        }
+        
+        if ($method === 'GET' && $path === '/batches/summary') {
+            $batchController->summary();
+        }
+        
+        if (preg_match('#^/batches/([1-9][0-9]*)$#', $path, $matches) === 1) {
+            $batchId = (int) $matches[1];
+            if ($method === 'GET') {
+                $batchController->show($batchId);
+            }
+        }
+        
+        if (preg_match('#^/batches/([1-9][0-9]*)/block$#', $path, $matches) === 1) {
+            $authorizationService->requirePermission($authenticatedUser, 'batches.block');
+            if ($method === 'POST') {
+                $batchController->block((int) $matches[1], $authenticatedUser);
+            }
+        }
+        
+        if (preg_match('#^/batches/([1-9][0-9]*)/unblock$#', $path, $matches) === 1) {
+            $authorizationService->requirePermission($authenticatedUser, 'batches.block');
+            if ($method === 'POST') {
+                $batchController->unblock((int) $matches[1], $authenticatedUser);
+            }
+        }
+        
+        if (preg_match('#^/batches/([1-9][0-9]*)/dispose$#', $path, $matches) === 1) {
+            $authorizationService->requirePermission($authenticatedUser, 'batches.dispose');
+            if ($method === 'POST') {
+                $batchController->dispose((int) $matches[1], $authenticatedUser);
+            }
+        }
+    }
+
 if (str_starts_with($path, '/inventory')) {
         if ($method === 'GET') {
             $authorizationService->requirePermission($authenticatedUser, 'inventory.view');
@@ -730,17 +817,63 @@ if (str_starts_with($path, '/inventory')) {
         $exception->errors()
     );
 } catch (PDOException $exception) {
-    error_log('Database error: ' . $exception->getMessage());
-    JsonResponse::error(
-        'DB Error: ' . $exception->getMessage(),
-        503
-    );
+    if (isset($logger)) {
+        $logger->error('DATABASE', 'Database error', ['exception' => $exception]);
+    }
+    $debug = DebugConfig::isEnabled() ? [
+        'layer' => 'DATABASE',
+        'exception' => get_class($exception),
+        'message' => $exception->getMessage(),
+        'file' => $exception->getFile(),
+        'line' => $exception->getLine()
+    ] : null;
+
+    $response = [
+        'success' => false,
+        'message' => 'The request could not be completed.',
+        'code' => 'DATABASE_ERROR',
+        'request_id' => $GLOBALS['MH_REQUEST_ID'] ?? 'sys',
+    ];
+    if ($debug) {
+        $response['debug'] = $debug;
+    }
+    http_response_code(503);
+    header('Content-Type: application/json');
+    echo json_encode($response);
+    exit;
 } catch (Throwable $exception) {
-    error_log('Unexpected API error: ' . $exception->getMessage());
-    JsonResponse::error('Server Error: ' . $exception->getMessage(), 500);
+    if (isset($logger)) {
+        $logger->critical('SERVER', 'Unexpected API error', ['exception' => $exception]);
+    }
+    $debug = DebugConfig::isEnabled() ? [
+        'layer' => 'SERVER',
+        'exception' => get_class($exception),
+        'message' => $exception->getMessage(),
+        'file' => $exception->getFile(),
+        'line' => $exception->getLine()
+    ] : null;
+
+    $response = [
+        'success' => false,
+        'message' => 'The request could not be completed.',
+        'code' => 'INTERNAL_ERROR',
+        'request_id' => $GLOBALS['MH_REQUEST_ID'] ?? 'sys',
+    ];
+    if ($debug) {
+        $response['debug'] = $debug;
+    }
+    http_response_code(500);
+    header('Content-Type: application/json');
+    echo json_encode($response);
+    exit;
 }
 
-
-
-
-
+if (isset($logger) && DebugConfig::isEnabled()) {
+    $duration = round((microtime(true) - ($startTime ?? microtime(true))) * 1000, 2);
+    $logger->debug('API', 'Request completed', [
+        'method' => $_SERVER['REQUEST_METHOD'] ?? 'GET',
+        'path' => parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH),
+        'duration_ms' => $duration,
+        'status' => http_response_code()
+    ]);
+}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import * as api from "../api/notifications";
+import { logger } from "../utils/logger";
 
 export default function useNotifications(pollingInterval = 60) {
   const [unreadCount, setUnreadCount] = useState(0);
@@ -16,7 +17,7 @@ export default function useNotifications(pollingInterval = 60) {
         setUnreadCount(response.data.summary.total);
       }
     } catch (err) {
-      console.error("Failed to fetch notification summary", err);
+      logger.error("Failed to fetch notification summary", err);
     }
   }, []);
 
@@ -29,7 +30,7 @@ export default function useNotifications(pollingInterval = 60) {
       }
     } catch (err) {
       setError(err);
-      console.error("Failed to fetch recent notifications", err);
+      logger.error("Failed to fetch recent notifications", err);
     } finally {
       setIsLoading(false);
     }
@@ -59,7 +60,7 @@ export default function useNotifications(pollingInterval = 60) {
       );
       fetchSummary();
     } catch (err) {
-      console.error(err);
+      logger.error(err);
     }
   };
 
@@ -71,7 +72,7 @@ export default function useNotifications(pollingInterval = 60) {
       );
       fetchSummary();
     } catch (err) {
-      console.error(err);
+      logger.error(err);
     }
   };
 
@@ -81,7 +82,7 @@ export default function useNotifications(pollingInterval = 60) {
       setRecentNotifications(prev => prev.filter(n => n.id !== id));
       fetchSummary();
     } catch (err) {
-      console.error(err);
+      logger.error(err);
     }
   };
 

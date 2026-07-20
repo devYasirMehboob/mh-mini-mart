@@ -35,6 +35,8 @@ const emptyForm = {
   minimum_stock: "0",
   unit_type: "piece",
   track_stock: true,
+  track_batches: false,
+  track_expiry: false,
   status: "active",
   image_data: null,
   remove_image: false,
@@ -166,6 +168,8 @@ function ProductsPage() {
         minimum_stock: latest.minimum_stock,
         unit_type: latest.unit_type,
         track_stock: Boolean(Number(latest.track_stock)),
+        track_batches: Boolean(Number(latest.track_batches)),
+        track_expiry: Boolean(Number(latest.track_expiry)),
         status: latest.status,
         image_data: null,
         remove_image: false,
@@ -202,7 +206,13 @@ function ProductsPage() {
 
   function handleFormChange(event) {
     const { name, value, type, checked } = event.target;
-    setFormValues((current) => ({ ...current, [name]: type === "checkbox" ? checked : value }));
+    setFormValues((current) => {
+      const next = { ...current, [name]: type === "checkbox" ? checked : value };
+      if (!editingProduct && (next.track_batches || next.track_expiry)) {
+        next.quantity = "0";
+      }
+      return next;
+    });
     setFormErrors((current) => ({ ...current, [name]: "" }));
   }
 

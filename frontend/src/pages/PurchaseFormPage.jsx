@@ -156,11 +156,14 @@ function PurchaseFormPage() {
     return {
       ...form,
       supplier_id: Number(form.supplier_id),
-      items: items.map(({ product_id, quantity, unit_cost, line_discount }) => ({
+      items: items.map(({ product_id, quantity, unit_cost, line_discount, batch_number, manufacturing_date, expiry_date }) => ({
         product_id,
         quantity,
         unit_cost,
         line_discount,
+        batch_number,
+        manufacturing_date,
+        expiry_date,
       })),
     };
   }

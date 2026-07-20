@@ -1,12 +1,15 @@
 export default function normalizeApiError(error) {
+  const requestId = error.response?.headers?.['x-request-id'] || error.response?.data?.request_id || 'sys';
+
   // If it's not an axios error, or has no response, it's likely a network error or crash
   if (!error.response) {
     return {
       type: 'network',
-      message: 'The local server is unavailable. Check Apache and MySQL.',
+      message: `The local server is unavailable. Check Apache and MySQL.\nReference: ${requestId}`,
       fieldErrors: {},
       status: 0,
       code: 'NETWORK_ERROR',
+      requestId,
     };
   }
 
@@ -22,5 +25,5 @@ export default function normalizeApiError(error) {
   else if (status === 404) type = 'not_found';
   else if (status === 409) type = 'conflict';
 
-  return { type, message, fieldErrors, status, code };
+  return { type, message, fieldErrors, status, code, requestId };
 }

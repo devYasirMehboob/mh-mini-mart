@@ -19,6 +19,7 @@ const groups = [
       { label: "Products", path: "/products", icon: "products", description: "Product catalogue", permission: "products.view" },
       { label: "Categories", path: "/categories", icon: "categories", description: "Product groups", permission: "categories.manage" },
       { label: "Inventory", path: "/inventory", icon: "inventory", description: "Stock and movements", permission: "inventory.view" },
+      { label: "Batches", path: "/batches", icon: "cube", description: "Expiry tracking", permission: "inventory.view" },
       { label: "Suppliers", path: "/suppliers", icon: "users", description: "Vendors and balances", permission: "suppliers.view" },
       { label: "Purchases", path: "/purchases", icon: "box", description: "Bills and payments", permission: "purchases.view" },
       { label: "Purchase Returns", path: "/purchase-returns", icon: "refund", description: "Supplier returns", permission: "purchases.view" },

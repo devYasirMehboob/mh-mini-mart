@@ -6,6 +6,7 @@ import BackupsPage from "./pages/BackupsPage";
 import DashboardPage from "./pages/DashboardPage";
 import ExpensesPage from "./pages/ExpensesPage";
 import InventoryPage from "./pages/InventoryPage";
+import BatchesPage from "./pages/BatchesPage";
 import LoginPage from "./pages/LoginPage";
 import PosPage from "./pages/PosPage";
 import ProductsPage from "./pages/ProductsPage";
@@ -42,6 +43,7 @@ function App() {
         <Route path="products" element={permitted("products.view", <ProductsPage />)} />
         <Route path="products/labels" element={permitted("labels.print", <BarcodeLabelsPage />)} />
         <Route path="inventory" element={permitted("inventory.view", <InventoryPage />)} />
+        <Route path="batches" element={permitted("inventory.view", <BatchesPage />)} />
         <Route path="suppliers" element={permitted("suppliers.view", <SuppliersPage />)} />
         <Route path="purchases" element={permitted("purchases.view", <PurchasesPage />)} />
         <Route path="purchases/new" element={permitted("purchases.create", <PurchaseFormPage />)} />

@@ -49,7 +49,7 @@ final class ProductRepository
                     p.product_code, p.barcode, p.barcode_type, p.barcode_source, p.barcode_printed_at, p.barcode_print_count,
                     p.purchase_cost, p.selling_price,
                     p.quantity, p.minimum_stock, p.unit_type, p.image,
-                    p.track_stock, p.status, p.created_at, p.updated_at
+                    p.track_stock, p.track_batches, p.track_expiry, p.status, p.created_at, p.updated_at
              FROM products p
              INNER JOIN categories c ON c.id = p.category_id'
              . $whereSql .
@@ -83,7 +83,7 @@ final class ProductRepository
                     p.product_code, p.barcode, p.barcode_type, p.barcode_source, p.barcode_printed_at, p.barcode_print_count,
                     p.purchase_cost, p.selling_price,
                     p.quantity, p.minimum_stock, p.unit_type, p.image,
-                    p.track_stock, p.status, p.created_at, p.updated_at
+                    p.track_stock, p.track_batches, p.track_expiry, p.status, p.created_at, p.updated_at
              FROM products p
              INNER JOIN categories c ON c.id = p.category_id
              WHERE p.id = :id
@@ -121,11 +121,11 @@ final class ProductRepository
             'INSERT INTO products (
                 category_id, name, product_code, barcode, purchase_cost,
                 selling_price, quantity, minimum_stock, unit_type, image,
-                track_stock, status
+                track_stock, track_batches, track_expiry, status
              ) VALUES (
                 :category_id, :name, :product_code, :barcode, :purchase_cost,
                 :selling_price, :quantity, :minimum_stock, :unit_type, :image,
-                :track_stock, :status
+                :track_stock, :track_batches, :track_expiry, :status
              )'
         );
         $statement->execute($this->writeParameters($data));
@@ -151,6 +151,8 @@ final class ProductRepository
                 unit_type = :unit_type,
                 image = :image,
                 track_stock = :track_stock,
+                track_batches = :track_batches,
+                track_expiry = :track_expiry,
                 status = :status
              WHERE id = :id'
         );
@@ -221,7 +223,7 @@ final class ProductRepository
         if ($ids === []) return [];
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $statement = $this->database->connection()->prepare(
-            'SELECT id, name, product_code, barcode, barcode_type, barcode_source, selling_price, purchase_cost, quantity, unit_type, track_stock, status FROM products WHERE id IN (' . $placeholders . ') ORDER BY id FOR UPDATE'
+            'SELECT id, name, product_code, barcode, barcode_type, barcode_source, selling_price, purchase_cost, quantity, unit_type, track_stock, track_batches, track_expiry, status FROM products WHERE id IN (' . $placeholders . ') ORDER BY id FOR UPDATE'
         );
         foreach (array_values($ids) as $index => $id) $statement->bindValue($index + 1, $id, PDO::PARAM_INT);
         $statement->execute();
@@ -302,9 +304,11 @@ final class ProductRepository
             'quantity' => $data['quantity'],
             'minimum_stock' => $data['minimum_stock'],
             'unit_type' => $data['unit_type'],
-            'image' => $data['image'],
+            'image' => $data['image'] ?? null,
             'track_stock' => $data['track_stock'] ? 1 : 0,
-            'status' => $data['status'],
+            'track_batches' => ($data['track_batches'] ?? false) ? 1 : 0,
+            'track_expiry' => ($data['track_expiry'] ?? false) ? 1 : 0,
+            'status' => $data['status'] ?? 'active',
         ];
     }
 }

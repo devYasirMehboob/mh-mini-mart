@@ -25,6 +25,8 @@ final class ProductValidator
         $minimumStock = $this->number($input['minimum_stock'] ?? null);
         $unitType = (string) ($input['unit_type'] ?? '');
         $trackStock = $this->boolean($input['track_stock'] ?? null);
+        $trackBatches = $this->boolean($input['track_batches'] ?? false);
+        $trackExpiry = $this->boolean($input['track_expiry'] ?? false);
         $status = (string) ($input['status'] ?? 'active');
 
         if ($name === '') {
@@ -90,6 +92,8 @@ final class ProductValidator
             'minimum_stock' => number_format($minimumStock, 3, '.', ''),
             'unit_type' => $unitType,
             'track_stock' => $trackStock,
+            'track_batches' => $trackBatches ?? false,
+            'track_expiry' => $trackExpiry ?? false,
             'status' => $status,
             'image_data' => $input['image_data'] ?? null,
             'remove_image' => $this->boolean($input['remove_image'] ?? false) ?? false,
