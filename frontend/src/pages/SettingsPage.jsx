@@ -112,7 +112,11 @@ function SettingsPage() {
     setErrors({});
     setFormError(null);
     try {
-      const response = await updateSettings({ [active]: settings[active] });
+      const payload = clone(settings[active]);
+      if (active === "shop") {
+        delete payload.logo_url;
+      }
+      const response = await updateSettings({ [active]: payload });
       setSettings(response.data);
       setOriginal(clone(response.data));
       await refreshSettings();
