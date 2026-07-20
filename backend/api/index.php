@@ -383,6 +383,35 @@ $inventoryController = new InventoryController(
     $method = $request->method();
     $path = $request->path();
 
+    if ($method === 'GET' && $path === '/run-database-migration') {
+        try {
+            $migrationFile = __DIR__ . '/../../database/migrations/013_batch_and_expiry_management.sql';
+            if (!file_exists($migrationFile)) {
+                JsonResponse::error('Migration file missing.', 404);
+            }
+            $sql = file_get_contents($migrationFile);
+            $queries = array_filter(array_map('trim', explode(';', $sql)));
+            $results = [];
+            foreach ($queries as $i => $query) {
+                if (empty($query)) continue;
+                try {
+                    $database->connection()->exec($query);
+                    $results[] = "Query " . ($i + 1) . " ran successfully.";
+                } catch (PDOException $e) {
+                    $msg = $e->getMessage();
+                    if (str_contains($msg, 'Duplicate column') || str_contains($msg, 'already exists') || str_contains($msg, 'Duplicate key')) {
+                        $results[] = "Query " . ($i + 1) . " skipped (Already exists).";
+                    } else {
+                        $results[] = "Query " . ($i + 1) . " failed: " . $msg;
+                    }
+                }
+            }
+            JsonResponse::success('Migration finished.', ['results' => $results]);
+        } catch (Exception $e) {
+            JsonResponse::error('Migration error: ' . $e->getMessage(), 500);
+        }
+    }
+
     if ($method === 'GET' && $path === '/csrf-token') {
         JsonResponse::success(
             'CSRF token created.',
