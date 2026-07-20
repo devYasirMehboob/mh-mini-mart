@@ -383,6 +383,17 @@ $inventoryController = new InventoryController(
     $method = $request->method();
     $path = $request->path();
 
+    if ($method === 'GET' && str_starts_with($path, '/uploads/')) {
+        $filePath = __DIR__ . str_replace('/', DIRECTORY_SEPARATOR, $path);
+        if (is_file($filePath)) {
+            $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($filePath);
+            header('Content-Type: ' . $mime);
+            header('Cache-Control: public, max-age=31536000');
+            readfile($filePath);
+            exit;
+        }
+    }
+
     if ($method === 'GET' && $path === '/run-database-migration') {
         try {
             $sql = "
