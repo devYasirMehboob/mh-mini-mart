@@ -244,8 +244,7 @@ function PosPage() {
       title: "Remove held sale?",
       description: "This removes the saved cart. Product stock will not change.",
       confirmText: "Remove held sale",
-      tone: "danger",
-      destructive: true
+      tone: "danger"
     });
     if (!confirmed) return;
 
@@ -266,8 +265,7 @@ function PosPage() {
       title: "Clear current cart?",
       description: "All selected products and payment details will be removed. The saved held record, if any, will remain available.",
       confirmText: "Clear cart",
-      tone: "danger",
-      destructive: true
+      tone: "danger"
     });
     if (!confirmed) return;
     
