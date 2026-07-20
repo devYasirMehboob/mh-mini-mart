@@ -9,10 +9,14 @@ ini_set('display_errors', '1');
 error_reporting(E_ALL);
 
 try {
-    // Load local database configuration
-    $configFile = __DIR__ . '/config/database.local.php';
+    // Load local database configuration (falling back to example just like index.php)
+    $localConfig = __DIR__ . '/config/database.local.php';
+    $configFile = is_file($localConfig)
+        ? $localConfig
+        : __DIR__ . '/config/database.example.php';
+        
     if (!file_exists($configFile)) {
-        throw new Exception("Configuration file not found: " . $configFile);
+        throw new Exception("Database configuration file not found!");
     }
     
     $config = require $configFile;
@@ -46,8 +50,13 @@ try {
     
     echo "<p>Running migration...</p>";
     
-    // Execute the raw SQL
-    $pdo->exec($sql);
+    // Split SQL by semicolon and execute (basic parsing to avoid syntax issues if exec() fails on multiple queries)
+    $queries = array_filter(array_map('trim', explode(';', $sql)));
+    foreach ($queries as $query) {
+        if (!empty($query)) {
+            $pdo->exec($query);
+        }
+    }
     
     echo "<h3 style='color: green;'>Migration executed successfully!</h3>";
     echo "<p>You can now use the Products and Batches pages. <b>Please delete this run_migration.php file now for security.</b></p>";
