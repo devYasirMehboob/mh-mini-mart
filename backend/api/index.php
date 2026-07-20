@@ -182,7 +182,7 @@ try {
         $settingsRepository,
         $settingsValidator,
         $configuration,
-        new LogoUploadService(__DIR__ . '/../uploads', 'uploads'),
+        new LogoUploadService(__DIR__ . '/uploads', 'api/uploads'),
         $activityRepository
     );
     $settingsController = new SettingsController($request, $settingsService, $session);
@@ -284,7 +284,7 @@ try {
         new StockTransactionRepository($database),
         $activityRepository,
         new ProductValidator(),
-        new ProductImageService(__DIR__ . '/../uploads', 'uploads'),
+        new ProductImageService(__DIR__ . '/uploads', 'api/uploads'),
         $barcodeService
     );
 
@@ -350,7 +350,7 @@ $inventoryController = new InventoryController(
     $expenseCategoryRepository = new ExpenseCategoryRepository($database);
     $expenseController = new ExpenseController(
         $request,
-        new ExpenseService($expenseRepository, $expenseCategoryRepository, new ExpenseValidator(), new ExpenseReceiptService(__DIR__ . '/../uploads', 'uploads'), $activityRepository),
+        new ExpenseService($expenseRepository, $expenseCategoryRepository, new ExpenseValidator(), new ExpenseReceiptService(__DIR__ . '/uploads', 'api/uploads'), $activityRepository),
         new ExpenseExportService($expenseRepository),
         $session
     );
