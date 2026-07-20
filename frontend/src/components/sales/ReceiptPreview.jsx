@@ -113,7 +113,7 @@ function ReceiptPreview({
             <article
               id="printable-receipt"
               dir="rtl"
-              style={{ fontFamily: '"Jameel Noori Nastaleeq", "Noto Nastaliq Urdu", "Nafees", "Urdu Typesetting", Tahoma, Arial, sans-serif' }}
+              style={{ fontFamily: '"Alvi Nastaleeq", "Jameel Noori Nastaleeq", "Noto Nastaliq Urdu", "Nafees", Tahoma, Arial, sans-serif' }}
               className="receipt-content mx-auto max-w-[300px] bg-white p-4 text-base leading-tight text-black print:p-0"
             >
               <style>{`
@@ -139,7 +139,7 @@ function ReceiptPreview({
                 )}
                 <h2 className="text-lg font-black">{shop.shop_name}</h2>
                 {shop.address && <p>{shop.address}</p>}
-                {shop.phone && <p className="barcode-text">{shop.phone}</p>}
+                {options.show_phone !== false && shop.phone && <p className="barcode-text">{shop.phone}</p>}
                 {shop.registration_number && <p>{shop.registration_number}</p>}
                 
                 <div className="my-3 border-t border-solid border-black" />

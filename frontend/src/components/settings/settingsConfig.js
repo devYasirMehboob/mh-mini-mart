@@ -189,6 +189,7 @@ export const settingsSections = [
           ["58mm", "58 mm"],
         ],
       ],
+      ["show_phone", "Show phone number", "toggle"],
       ["show_logo", "Show shop logo", "toggle"],
       ["show_customer", "Show customer information", "toggle"],
       ["show_cashier", "Show cashier name", "toggle"],

@@ -6,12 +6,12 @@ export async function getNotifications(params = {}) {
 }
 
 export async function getRecentNotifications(limit = 5) {
-  const response = await apiClient.get("/notifications/recent", { params: { limit } });
+  const response = await apiClient.get("/notifications/recent", { params: { limit }, silent: true });
   return response.data;
 }
 
 export async function getUnreadCount() {
-  const response = await apiClient.get("/notifications/unread-count");
+  const response = await apiClient.get("/notifications/unread-count", { silent: true });
   return response.data;
 }
 

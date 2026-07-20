@@ -52,7 +52,9 @@ apiClient.interceptors.response.use(
     
     // Handle Network Errors (no response from server)
     if (!error.response) {
-      alertManager.error(`The local server is unavailable. Check Apache and MySQL.\nReference: ${requestId}`, { preventDuplicate: true, id: `network-error` });
+      if (!error.config?.silent) {
+        alertManager.error(`The local server is unavailable. Check Apache and MySQL.\nReference: ${requestId}`, { preventDuplicate: true, id: `network-error` });
+      }
       return Promise.reject(error);
     }
 
@@ -68,7 +70,7 @@ apiClient.interceptors.response.use(
     }
 
     // Handle 500/503 Server Error globally
-    if (status >= 500) {
+    if (status >= 500 && !error.config?.silent) {
       if (debug) {
         alertManager.error(`Developer Error\nLayer: ${debug.layer}\nEndpoint: ${error.config.method.toUpperCase()} ${error.config.url}\nStatus: ${status}\nRequest ID: ${requestId}\nDetails: ${debug.message}`, { preventDuplicate: true, id: `internal-error-${requestId}` });
       } else {

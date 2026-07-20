@@ -11,7 +11,7 @@ final class SettingsValidator{
  'inventory'=>['global_tracking_enabled'=>$b(true),'default_minimum_stock'=>$n(5),'allow_negative_stock'=>$b(false),'low_stock_alerts'=>$b(true),'out_of_stock_alerts'=>$b(true),'wastage_tracking'=>$b(true),'expiry_tracking'=>$b(false)],
  'barcode'=>['enabled'=>$b(true),'auto_focus'=>$b(true),'auto_add'=>$b(true),'input_timeout_ms'=>$i(250)],
  'customers'=>['enabled'=>$b(true),'use_walk_in'=>$b(true),'require_phone'=>$b(false),'save_optional_information'=>$b(true)],
- 'receipt'=>['paper_width'=>$s('80mm'),'show_logo'=>$b(true),'show_customer'=>$b(true),'show_cashier'=>$b(true),'show_tax'=>$b(true),'show_discount'=>$b(true),'show_payment_method'=>$b(true),'show_change'=>$b(true),'auto_print'=>$b(false)],
+ 'receipt'=>['paper_width'=>$s('80mm'),'show_logo'=>$b(true),'show_phone'=>$b(true),'show_customer'=>$b(true),'show_cashier'=>$b(true),'show_tax'=>$b(true),'show_discount'=>$b(true),'show_payment_method'=>$b(true),'show_change'=>$b(true),'auto_print'=>$b(false)],
  'printer'=>['printer_name'=>$s(''),'label_printer_name'=>$s(''),'printing_method'=>$s('browser'),'direct_printing_enabled'=>$b(false),'copies'=>$i(1)],
  'security'=>['inactivity_timeout_minutes'=>$i(30,false),'automatic_logout'=>$b(true,false),'require_password_for_sensitive_actions'=>$b(false,false)],
  'backups'=>['backup_folder'=>$s('backups',false),'retention_days'=>$i(30,false),'automatic_backup'=>$b(false,false),'automatic_backup_time'=>$s('02:00',false),'cloud_folder'=>$s('',false),'timestamp_filenames'=>$b(true,false)],
