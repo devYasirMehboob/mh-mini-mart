@@ -12,7 +12,7 @@ import apiClient from "../../api/apiClient";
 const shopImageUrl = (url) => {
   if (!url) return "";
   if (url.startsWith("http")) return url;
-  return `${apiClient.defaults.baseURL.replace("/api", "")}${url}`;
+  return new URL(url, apiClient.defaults.baseURL).href;
 };
 
 function ReceiptPreview({

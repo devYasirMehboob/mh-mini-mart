@@ -182,7 +182,7 @@ try {
         $settingsRepository,
         $settingsValidator,
         $configuration,
-        new LogoUploadService(__DIR__ . '/../uploads/settings'),
+        new LogoUploadService(__DIR__ . '/../uploads', 'uploads'),
         $activityRepository
     );
     $settingsController = new SettingsController($request, $settingsService, $session);
@@ -350,7 +350,7 @@ $inventoryController = new InventoryController(
     $expenseCategoryRepository = new ExpenseCategoryRepository($database);
     $expenseController = new ExpenseController(
         $request,
-        new ExpenseService($expenseRepository, $expenseCategoryRepository, new ExpenseValidator(), new ExpenseReceiptService(__DIR__ . '/../uploads/expenses'), $activityRepository),
+        new ExpenseService($expenseRepository, $expenseCategoryRepository, new ExpenseValidator(), new ExpenseReceiptService(__DIR__ . '/../uploads', 'uploads'), $activityRepository),
         new ExpenseExportService($expenseRepository),
         $session
     );
