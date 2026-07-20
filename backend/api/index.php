@@ -630,7 +630,7 @@ if (str_starts_with($path, '/products')) {
     }
 
     if (str_starts_with($path, '/batches')) {
-        // $authorizationService->requirePermission($authenticatedUser, 'inventory.view');
+        $authorizationService->requirePermission($authenticatedUser, 'inventory.view');
         
         if ($method === 'GET' && $path === '/batches') {
             $batchController->index();

@@ -39,8 +39,6 @@ final class BatchController
         ];
 
         $result = $this->batchRepository->paginate($filters);
-        error_log("BatchFilters: " . json_encode($filters));
-        error_log("BatchResultCount: " . count($result['batches']));
         JsonResponse::success('Batches retrieved successfully.', $result);
     }
 
