@@ -620,20 +620,21 @@ $inventoryController = new InventoryController(
         if ($method === 'POST' && $path === '/notifications/evaluate') $notificationController->evaluate($authenticatedUser);
     }
 
-    if (str_starts_with($path, '/backups')) {
-        if ($method === 'POST' && preg_match('#^/backups/([^/]+)/restore$#', $path, $matches) === 1) {
+    if (str_starts_with($path, '/backups') || str_starts_with($path, '/system-backups')) {
+        $cleanPath = str_replace('/system-backups', '/backups', $path);
+        if ($method === 'POST' && preg_match('#^/backups/([^/]+)/restore$#', $cleanPath, $matches) === 1) {
             $authorizationService->requirePermission($authenticatedUser, 'backups.restore');
             $backupController->restore(rawurldecode($matches[1]), $authenticatedUser);
         }
 
         $authorizationService->requirePermission($authenticatedUser, 'backups.create');
-        if ($method === 'GET' && $path === '/backups') {
+        if ($method === 'GET' && $cleanPath === '/backups') {
             $backupController->index();
         }
-        if ($method === 'POST' && $path === '/backups') {
+        if ($method === 'POST' && $cleanPath === '/backups') {
             $backupController->store($authenticatedUser);
         }
-        if ($method === 'GET' && preg_match('#^/backups/([^/]+)/download$#', $path, $matches) === 1) {
+        if ($method === 'GET' && preg_match('#^/backups/([^/]+)/download$#', $cleanPath, $matches) === 1) {
             $backupController->download(rawurldecode($matches[1]));
         }
     }
