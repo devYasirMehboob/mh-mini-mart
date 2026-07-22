@@ -164,8 +164,21 @@ export async function deductCachedStock(items) {
       getReq.onsuccess = () => {
         const product = getReq.result;
         if (product && product.track_stock === 1) {
-          product.quantity = Math.max(0, product.quantity - parseFloat(item.quantity));
-          store.put(product);
+          if (product.stock_mode === 'shared' && product.stock_source_id) {
+            const sourceReq = store.get(Number(product.stock_source_id));
+            sourceReq.onsuccess = () => {
+              const sourceProduct = sourceReq.result;
+              if (sourceProduct) {
+                const consumptionBase = parseFloat(product.consumption_quantity_base || 1);
+                const deduction = parseFloat(item.quantity) * consumptionBase;
+                sourceProduct.quantity = Math.max(0, sourceProduct.quantity - deduction);
+                store.put(sourceProduct);
+              }
+            };
+          } else {
+            product.quantity = Math.max(0, product.quantity - parseFloat(item.quantity));
+            store.put(product);
+          }
         }
       };
     });

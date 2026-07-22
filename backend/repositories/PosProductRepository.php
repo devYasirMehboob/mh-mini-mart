@@ -39,7 +39,7 @@ final class PosProductRepository
              p.minimum_stock, COALESCE(u.name, \'piece\') AS unit_type, COALESCE(pu.conversion_to_base, 1.0) AS conversion_to_base, p.base_unit_id, p.default_sale_unit_id, p.image, p.track_stock, p.stock_mode, p.stock_source_id, p.consumption_quantity, p.consumption_unit_id, p.consumption_quantity_base, p.allow_custom_sale, p.default_custom_sale_unit_id, p.status, p.updated_at 
              FROM products p 
              INNER JOIN categories c ON c.id=p.category_id 
-             LEFT JOIN units u ON u.id=p.default_sale_unit_id 
+             LEFT JOIN units u ON u.id=COALESCE(p.default_sale_unit_id, p.base_unit_id) 
              LEFT JOIN product_units pu ON pu.product_id=p.id AND pu.unit_id=p.default_sale_unit_id 
              LEFT JOIN products source ON source.id = p.stock_source_id
              ' . $whereSql . ' ORDER BY p.name ASC, p.id ASC LIMIT :limit OFFSET :offset'
@@ -63,7 +63,7 @@ final class PosProductRepository
              p.minimum_stock, COALESCE(u.name, \'piece\') AS unit_type, COALESCE(pu.conversion_to_base, 1.0) AS conversion_to_base, p.base_unit_id, p.default_sale_unit_id, p.image, p.track_stock, p.stock_mode, p.stock_source_id, p.consumption_quantity, p.consumption_unit_id, p.consumption_quantity_base, p.allow_custom_sale, p.default_custom_sale_unit_id, p.status, p.updated_at 
              FROM products p 
              INNER JOIN categories c ON c.id=p.category_id 
-             LEFT JOIN units u ON u.id=p.default_sale_unit_id 
+             LEFT JOIN units u ON u.id=COALESCE(p.default_sale_unit_id, p.base_unit_id) 
              LEFT JOIN product_units pu ON pu.product_id=p.id AND pu.unit_id=p.default_sale_unit_id 
              LEFT JOIN products source ON source.id = p.stock_source_id
              WHERE LOWER(p.barcode)=LOWER(:barcode) LIMIT 1'
@@ -83,7 +83,7 @@ final class PosProductRepository
              p.minimum_stock, COALESCE(u.name, \'piece\') AS unit_type, COALESCE(pu.conversion_to_base, 1.0) AS conversion_to_base, p.base_unit_id, p.default_sale_unit_id, p.image, p.track_stock, p.stock_mode, p.stock_source_id, p.consumption_quantity, p.consumption_unit_id, p.consumption_quantity_base, p.allow_custom_sale, p.default_custom_sale_unit_id, p.status, p.updated_at 
              FROM products p 
              INNER JOIN categories c ON c.id=p.category_id 
-             LEFT JOIN units u ON u.id=p.default_sale_unit_id 
+             LEFT JOIN units u ON u.id=COALESCE(p.default_sale_unit_id, p.base_unit_id) 
              LEFT JOIN product_units pu ON pu.product_id=p.id AND pu.unit_id=p.default_sale_unit_id 
              LEFT JOIN products source ON source.id = p.stock_source_id
              WHERE p.id IN (' . $holders . ') ORDER BY p.id'

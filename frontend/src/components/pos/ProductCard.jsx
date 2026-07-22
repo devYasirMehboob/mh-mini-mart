@@ -9,6 +9,10 @@ function ProductCard({ product, onAdd }) {
   const label = !tracked ? "Not tracked" : out ? "Out of stock" : low ? "Low stock" : "In stock";
   const tone = !tracked ? "bg-slate-100 text-slate-600" : out ? "bg-red-50 text-red-700" : low ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700";
 
+  const isWeightUnit = ["gram", "grams", "g", "kilogram", "kg", "kilos", "millilitre", "ml", "litre", "liter", "l"].includes(String(product.unit_type || "").toLowerCase());
+  const displayUnit = product.stock_mode === "shared" && isWeightUnit ? "Pcs / Packs" : (product.unit_type || "Pcs");
+  const stockText = !tracked ? "Stock not tracked" : `${Number(product.quantity)} ${displayUnit} available`;
+
   return (
     <div
       role="button"
@@ -25,7 +29,7 @@ function ProductCard({ product, onAdd }) {
         <span className="block truncate text-sm font-extrabold text-slate-900">{product.name}</span>
         <span className="mt-1 block truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">{product.product_code} · {product.category_name}</span>
         <span className="mt-3 flex items-end justify-between gap-2">
-          <span><strong className="block text-[15px] font-extrabold text-slate-950">{formatCurrency(product.selling_price)}</strong><small className="mt-0.5 block text-[10px] font-medium text-slate-400">{tracked ? `${Number(product.quantity)} ${product.unit_type} available` : "Stock not tracked"}</small></span>
+          <span><strong className="block text-[15px] font-extrabold text-slate-950">{formatCurrency(product.selling_price)}</strong><small className="mt-0.5 block text-[10px] font-medium text-slate-400">{stockText}</small></span>
           <span className="flex items-center gap-1">
             {Number(product.allow_custom_sale) === 1 && (
               <button

@@ -57,6 +57,35 @@ function ProductForm({
     }
   }, [values.stock_mode, values.category_id, isEdit, values.id]);
 
+  useEffect(() => {
+    if (values.stock_mode !== 'shared' || !values.consumption_quantity) return;
+    const qty = parseFloat(values.consumption_quantity);
+    if (isNaN(qty) || qty <= 0) return;
+
+    const selectedUnit = units?.find((u) => String(u.id) === String(values.base_unit_id));
+    const selectedSource = sourceProducts?.find((p) => String(p.id) === String(values.stock_source_id));
+
+    let factor = 1;
+    if (selectedUnit && selectedSource) {
+      const uName = (selectedUnit.name || selectedUnit.symbol || '').toLowerCase();
+      const sUnitName = (selectedSource.unit_type || '').toLowerCase();
+
+      if ((uName.includes('gram') || uName === 'g') && (sUnitName.includes('kilo') || sUnitName === 'kg')) {
+        factor = 0.001;
+      } else if (
+        (uName.includes('milli') || uName === 'ml') &&
+        (sUnitName.includes('liter') || sUnitName.includes('litre') || sUnitName === 'l')
+      ) {
+        factor = 0.001;
+      }
+    }
+
+    const calculatedBase = (qty * factor).toFixed(6).replace(/\.?0+$/, '');
+    if (values.consumption_quantity_base !== calculatedBase) {
+      onChange({ target: { name: 'consumption_quantity_base', value: calculatedBase } });
+    }
+  }, [values.stock_mode, values.consumption_quantity, values.base_unit_id, values.stock_source_id, units, sourceProducts, onChange, values.consumption_quantity_base]);
+
   return (
     <form onSubmit={onSubmit} noValidate>
       <div className="max-h-[70vh] space-y-6 overflow-y-auto px-6 py-5">
@@ -194,12 +223,12 @@ function ProductForm({
                     </div>
                     <div>
                       <label className="mb-2 block text-xs font-semibold text-slate-700">Consumption Quantity</label>
-                      <input className={inputClasses(errors.consumption_quantity)} name="consumption_quantity" type="number" min="0.001" step="0.001" value={values.consumption_quantity || ''} onChange={onChange} disabled={isSubmitting} />
+                      <input className={inputClasses(errors.consumption_quantity)} name="consumption_quantity" type="number" min="0.001" step="0.001" value={values.consumption_quantity || ''} onChange={onChange} disabled={isSubmitting} placeholder="e.g. 250 for Grams" />
                       <FieldError message={errors.consumption_quantity} />
                     </div>
                     <div>
-                      <label className="mb-2 block text-xs font-semibold text-slate-700">Consumption Base Value</label>
-                      <input className={inputClasses(errors.consumption_quantity_base)} name="consumption_quantity_base" type="number" min="0.000001" step="0.000001" value={values.consumption_quantity_base || ''} onChange={onChange} disabled={isSubmitting} placeholder="e.g. 1.000 for 1 base unit" />
+                      <label className="mb-2 block text-xs font-semibold text-slate-700">Consumption Base Value (in Master Unit)</label>
+                      <input className={inputClasses(errors.consumption_quantity_base)} name="consumption_quantity_base" type="number" min="0.000001" step="0.000001" value={values.consumption_quantity_base || ''} onChange={onChange} disabled={isSubmitting} placeholder="Auto-calculated (e.g. 0.250 Kg)" />
                       <FieldError message={errors.consumption_quantity_base} />
                     </div>
                   </div>
@@ -220,33 +249,51 @@ function ProductForm({
 
         <section className="border-t border-slate-100 pt-5">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Pricing and stock</h3>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {canViewCosts && <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="purchase-cost">Purchase cost</label>
-              <input className={inputClasses(errors.purchase_cost)} id="purchase-cost" name="purchase_cost" type="number" min="0" step="0.01" value={values.purchase_cost} onChange={onChange} disabled={isSubmitting} />
-              <FieldError message={errors.purchase_cost} />
-            </div>}
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="selling-price">Selling price</label>
-              <input className={inputClasses(errors.selling_price)} id="selling-price" name="selling_price" type="number" min="0.01" step="0.01" value={values.selling_price} onChange={onChange} disabled={isSubmitting} />
-              <FieldError message={errors.selling_price} />
+          {values.stock_mode === 'shared' ? (
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="selling-price">
+                  Selling price <span className="text-red-500">*</span>
+                </label>
+                <input className={inputClasses(errors.selling_price)} id="selling-price" name="selling_price" type="number" min="0.01" step="0.01" value={values.selling_price} onChange={onChange} disabled={isSubmitting} />
+                <FieldError message={errors.selling_price} />
+              </div>
+              <div className="flex items-center rounded-xl border border-blue-100 bg-blue-50/70 p-4 text-xs text-blue-800">
+                <span>
+                  <strong>Shared Inventory Note:</strong> Stock quantity, minimum stock alerts, and purchase cost for this variant are dynamically managed via the selected Master Inventory Product.
+                </span>
+              </div>
             </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="product-quantity">Quantity</label>
-              <input className={inputClasses(errors.quantity)} id="product-quantity" name="quantity" type="number" min="0" step="0.001" value={values.quantity} onChange={onChange} disabled={isSubmitting || !values.track_stock || values.track_batches || values.track_expiry || isEdit || values.stock_mode === 'shared'} />
-              {isEdit && values.stock_mode !== 'shared' && <p className="mt-1.5 text-xs text-slate-400">Use Inventory to record quantity changes.</p>}
-              {!isEdit && (values.track_batches || values.track_expiry) && values.stock_mode !== 'shared' && (
-                <p className="mt-1.5 text-xs text-orange-500">Initial quantity must be 0. Use Purchases to add stock so you can enter the expiry date and batch number.</p>
+          ) : (
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {canViewCosts && (
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="purchase-cost">Purchase cost</label>
+                  <input className={inputClasses(errors.purchase_cost)} id="purchase-cost" name="purchase_cost" type="number" min="0" step="0.01" value={values.purchase_cost} onChange={onChange} disabled={isSubmitting} />
+                  <FieldError message={errors.purchase_cost} />
+                </div>
               )}
-              {values.stock_mode === 'shared' && <p className="mt-1.5 text-xs text-slate-400">Stock is managed via the stock source.</p>}
-              <FieldError message={errors.quantity} />
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="selling-price">Selling price <span className="text-red-500">*</span></label>
+                <input className={inputClasses(errors.selling_price)} id="selling-price" name="selling_price" type="number" min="0.01" step="0.01" value={values.selling_price} onChange={onChange} disabled={isSubmitting} />
+                <FieldError message={errors.selling_price} />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="product-quantity">Quantity</label>
+                <input className={inputClasses(errors.quantity)} id="product-quantity" name="quantity" type="number" min="0" step="0.001" value={values.quantity} onChange={onChange} disabled={isSubmitting || !values.track_stock || values.track_batches || values.track_expiry || isEdit} />
+                {isEdit && <p className="mt-1.5 text-xs text-slate-400">Use Inventory to record quantity changes.</p>}
+                {!isEdit && (values.track_batches || values.track_expiry) && (
+                  <p className="mt-1.5 text-xs text-orange-500">Initial quantity must be 0. Use Purchases to add stock so you can enter the expiry date and batch number.</p>
+                )}
+                <FieldError message={errors.quantity} />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="minimum-stock">Minimum stock</label>
+                <input className={inputClasses(errors.minimum_stock)} id="minimum-stock" name="minimum_stock" type="number" min="0" step="0.001" value={values.minimum_stock} onChange={onChange} disabled={isSubmitting || !values.track_stock} />
+                <FieldError message={errors.minimum_stock} />
+              </div>
             </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="minimum-stock">Minimum stock</label>
-              <input className={inputClasses(errors.minimum_stock)} id="minimum-stock" name="minimum_stock" type="number" min="0" step="0.001" value={values.minimum_stock} onChange={onChange} disabled={isSubmitting || !values.track_stock} />
-              <FieldError message={errors.minimum_stock} />
-            </div>
-          </div>
+          )}
           <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
             <input className="size-4 accent-emerald-600" name="track_stock" type="checkbox" checked={values.track_stock} onChange={onChange} disabled={isSubmitting} />
             <span>
