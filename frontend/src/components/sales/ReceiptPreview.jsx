@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Modal from "../Modal";
 import LoadingState from "../LoadingState";
+import ReadableStock from "../products/ReadableStock";
 import {
   formatCurrency,
   formatDateTime,
@@ -185,7 +186,7 @@ function ReceiptPreview({
                         </small>
                       </td>
                       <td className="py-1 text-left align-top barcode-text">
-                        {Number(item.quantity)}
+                        <ReadableStock quantity={item.quantity_entered || item.quantity} unitType={item.unit_name_snapshot || ""} />
                       </td>
                       <td className="py-1 text-left align-top barcode-text">
                         {formatCurrency(item.line_total)}

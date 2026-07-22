@@ -12,6 +12,7 @@ import SaleSuccessModal from "../components/pos/SaleSuccessModal";
 
 import TotalsPanel from "../components/pos/TotalsPanel";
 import ReceiptPreview from "../components/sales/ReceiptPreview";
+import AmountWeightModal from "../components/pos/AmountWeightModal";
 import useAlert from "../hooks/useAlert";
 import useConfirmation from "../hooks/useConfirmation";
 import normalizeApiError from "../utils/normalizeApiError";
@@ -109,6 +110,7 @@ function PosPage() {
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptLoading, setReceiptLoading] = useState(false);
   const [stockRefresh, setStockRefresh] = useState(0);
+  const [amountWeightProduct, setAmountWeightProduct] = useState(null);
   const totals = useMemo(() => calculateSaleTotals(cart.items, discountType, discountValue, taxSettings.enabled ? taxSettings.percentage : 0, taxSettings.calculation_mode), [cart.items, discountType, discountValue, taxSettings.enabled, taxSettings.percentage, taxSettings.calculation_mode]);
 
   useEffect(() => {
@@ -145,8 +147,17 @@ function PosPage() {
       .catch((failure) => notify(normalizeApiError(failure).message, "error"));
   }, [cart, notify]);
 
-  function add(product) {
+  function add(product, byAmount = false) {
+    if (byAmount) {
+      setAmountWeightProduct(product);
+      return;
+    }
     const result = cart.addProduct(product);
+    notify(result.message, result.ok ? "success" : "error");
+  }
+
+  function addWithQuantity(product, quantityToAdd) {
+    const result = cart.addProduct(product, quantityToAdd);
     notify(result.message, result.ok ? "success" : "error");
   }
 
@@ -191,7 +202,7 @@ function PosPage() {
     return {
       request_token: requestToken,
       held_sale_id: activeHeldSaleId,
-      items: cart.items.map((item) => ({ product_id: item.id, quantity: item.cartQuantity })),
+      items: cart.items.map((item) => ({ product_id: item.id, unit_id: item.unit_id || null, quantity: item.cartQuantity })),
       discount_type: discount > 0 ? discountType : "none",
       discount_value: discount,
       payment_method: payment.payment_method,
@@ -349,6 +360,7 @@ function PosPage() {
       <HeldSalesDialog isOpen={heldOpen} sales={held.heldSales} isLoading={held.loading} error={held.error} onRetry={() => held.load().catch(() => undefined)} onClose={() => setHeldOpen(false)} onResume={resume} onRemove={async (sale) => { setHeldOpen(false); await confirmRemoveHeld(sale); }} />
       <SaleSuccessModal sale={savedSale} isLoadingReceipt={receiptLoading} onPrint={openReceipt} onViewSale={() => navigate("/sales")} onNewSale={newSale} />
       <ReceiptPreview isOpen={receiptOpen} receipt={receipt} isLoading={false} autoPrint={receiptSettings.auto_print} onClose={() => setReceiptOpen(false)} />
+      <AmountWeightModal product={amountWeightProduct} open={!!amountWeightProduct} onClose={() => setAmountWeightProduct(null)} onAdd={addWithQuantity} />
     </div>
   );
 }

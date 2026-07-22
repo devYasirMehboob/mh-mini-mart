@@ -18,8 +18,8 @@ final class StockTransactionRepository
         $data['batch_id'] = $data['batch_id'] ?? null;
         $statement = $this->database->connection()->prepare(
             'INSERT INTO stock_transactions (
-                product_id, user_id, transaction_type, quantity,
-                previous_stock, new_stock, reason, reference_type, reference_id, batch_id
+                product_id, user_id, transaction_type, quantity_base,
+                previous_stock_base, new_stock_base, reason, reference_type, reference_id, batch_id
              ) VALUES (
                 :product_id, :user_id, :transaction_type, :quantity,
                 :previous_stock, :new_stock, :reason, :reference_type, :reference_id, :batch_id
@@ -34,13 +34,14 @@ final class StockTransactionRepository
     {
         $statement = $this->database->connection()->prepare(
             'SELECT st.id, st.product_id, p.name AS product_name,
-                    p.product_code, p.unit_type, st.user_id,
+                    p.product_code, COALESCE(u_unit.name, \'piece\') AS unit_type, st.user_id,
                     u.name AS user_name, st.transaction_type,
-                    st.quantity, st.previous_stock, st.new_stock,
+                    st.quantity_base AS quantity, st.previous_stock_base AS previous_stock, st.new_stock_base AS new_stock,
                     st.reason, st.reference_type, st.reference_id,
                     st.created_at
              FROM stock_transactions st
              INNER JOIN products p ON p.id = st.product_id
+             LEFT JOIN units u_unit ON u_unit.id = p.base_unit_id
              INNER JOIN access_credentials u ON u.id = st.user_id
              WHERE st.id = :id'
         );
@@ -102,13 +103,14 @@ final class StockTransactionRepository
 
         $statement = $this->database->connection()->prepare(
             'SELECT st.id, st.product_id, p.name AS product_name,
-                    p.product_code, p.unit_type, st.user_id,
+                    p.product_code, COALESCE(u_unit.name, \'piece\') AS unit_type, st.user_id,
                     u.name AS user_name, st.transaction_type,
-                    st.quantity, st.previous_stock, st.new_stock,
+                    st.quantity_base AS quantity, st.previous_stock_base AS previous_stock, st.new_stock_base AS new_stock,
                     st.reason, st.reference_type, st.reference_id,
                     st.created_at
              FROM stock_transactions st
              INNER JOIN products p ON p.id = st.product_id
+             LEFT JOIN units u_unit ON u_unit.id = p.base_unit_id
              INNER JOIN access_credentials u ON u.id = st.user_id'
              . $whereSql .
             ' ORDER BY st.created_at DESC, st.id DESC
@@ -140,5 +142,18 @@ final class StockTransactionRepository
             'DELETE FROM stock_transactions WHERE product_id = :product_id'
         );
         $statement->execute(['product_id' => $productId]);
+    }
+
+    public function findByReference(string $referenceType, int $referenceId): array
+    {
+        $statement = $this->database->connection()->prepare(
+            'SELECT * FROM stock_transactions
+             WHERE reference_type = :reference_type AND reference_id = :reference_id'
+        );
+        $statement->execute([
+            'reference_type' => $referenceType,
+            'reference_id' => $referenceId,
+        ]);
+        return $statement->fetchAll();
     }
 }

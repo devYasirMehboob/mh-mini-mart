@@ -39,13 +39,13 @@ final class BatchRepository
         if ($filters['expiry_state'] !== '') {
             switch ($filters['expiry_state']) {
                 case 'valid':
-                    $where[] = 'b.status = "active" AND b.remaining_quantity > 0 AND (b.expiry_date IS NULL OR b.expiry_date >= CURRENT_DATE)';
+                    $where[] = 'b.status = "active" AND b.remaining_quantity_base > 0 AND (b.expiry_date IS NULL OR b.expiry_date >= CURRENT_DATE)';
                     break;
                 case 'expired':
-                    $where[] = 'b.remaining_quantity > 0 AND b.expiry_date < CURRENT_DATE';
+                    $where[] = 'b.remaining_quantity_base > 0 AND b.expiry_date < CURRENT_DATE';
                     break;
                 case 'near_expiry':
-                    $where[] = 'b.status = "active" AND b.remaining_quantity > 0 AND b.expiry_date >= CURRENT_DATE AND b.expiry_date <= DATE_ADD(CURRENT_DATE, INTERVAL :near_days DAY)';
+                    $where[] = 'b.status = "active" AND b.remaining_quantity_base > 0 AND b.expiry_date >= CURRENT_DATE AND b.expiry_date <= DATE_ADD(CURRENT_DATE, INTERVAL :near_days DAY)';
                     $parameters['near_days'] = $filters['near_days'] ?? 30;
                     break;
             }
@@ -60,9 +60,10 @@ final class BatchRepository
         $total = (int) $countStatement->fetchColumn();
 
         $statement = $this->database->connection()->prepare(
-            'SELECT b.*, p.name AS product_name, p.product_code, p.unit_type
+            'SELECT b.*, b.remaining_quantity_base AS remaining_quantity, b.received_quantity_base AS received_quantity, b.reserved_quantity_base AS reserved_quantity, p.name AS product_name, p.product_code, COALESCE(u.name, \'piece\') AS unit_type
              FROM product_batches b
-             INNER JOIN products p ON p.id = b.product_id'
+             INNER JOIN products p ON p.id = b.product_id
+             LEFT JOIN units u ON u.id = p.base_unit_id'
              . $whereSql .
             ' ORDER BY b.created_at DESC, b.id DESC
               LIMIT :limit OFFSET :offset'
@@ -90,9 +91,10 @@ final class BatchRepository
     public function find(int $id): ?array
     {
         $statement = $this->database->connection()->prepare(
-            'SELECT b.*, p.name AS product_name, p.product_code, p.unit_type
+            'SELECT b.*, b.remaining_quantity_base AS remaining_quantity, b.received_quantity_base AS received_quantity, b.reserved_quantity_base AS reserved_quantity, p.name AS product_name, p.product_code, COALESCE(u.name, \'piece\') AS unit_type
              FROM product_batches b
              INNER JOIN products p ON p.id = b.product_id
+             LEFT JOIN units u ON u.id = p.base_unit_id
              WHERE b.id = :id
              LIMIT 1'
         );
@@ -105,11 +107,11 @@ final class BatchRepository
     public function getSellableBatches(int $productId): array
     {
         $statement = $this->database->connection()->prepare(
-            'SELECT b.*
+            'SELECT b.*, b.remaining_quantity_base AS remaining_quantity, b.received_quantity_base AS received_quantity, b.reserved_quantity_base AS reserved_quantity
              FROM product_batches b
              WHERE b.product_id = :product_id
                AND b.status = \'active\'
-               AND b.remaining_quantity > 0
+               AND b.remaining_quantity_base > 0
                AND (b.expiry_date IS NULL OR b.expiry_date >= CURRENT_DATE)
              ORDER BY b.expiry_date ASC, b.received_at ASC, b.id ASC
              FOR UPDATE'
@@ -123,8 +125,8 @@ final class BatchRepository
         $statement = $this->database->connection()->prepare(
             'INSERT INTO product_batches (
                 product_id, purchase_id, purchase_item_id, batch_number,
-                manufacturing_date, expiry_date, received_quantity,
-                remaining_quantity, reserved_quantity, unit_cost, status,
+                manufacturing_date, expiry_date, received_quantity_base,
+                remaining_quantity_base, reserved_quantity_base, unit_cost, status,
                 received_at, created_by
              ) VALUES (
                 :product_id, :purchase_id, :purchase_item_id, :batch_number,
@@ -159,7 +161,7 @@ final class BatchRepository
         }
 
         $statement = $this->database->connection()->prepare(
-            'UPDATE product_batches SET remaining_quantity = :qty' . $statusUpdate . ' WHERE id = :id'
+            'UPDATE product_batches SET remaining_quantity_base = :qty' . $statusUpdate . ' WHERE id = :id'
         );
         $statement->execute([
             'qty' => $remainingQuantity,

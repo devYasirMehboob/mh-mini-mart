@@ -1,0 +1,25 @@
+Array
+(
+    [request_token] => ea2b48ba-7d48-436c-a8b6-dd4f3b48cc72
+    [held_sale_id] => 
+    [items] => Array
+        (
+            [0] => Array
+                (
+                    [product_id] => 3
+                    [unit_id] => 
+                    [quantity] => 1
+                )
+
+        )
+
+    [discount_type] => none
+    [discount_value] => 0
+    [payment_method] => cash
+    [payment_reference] => 
+    [amount_received] => 250
+    [customer_name] => 
+    [customer_phone] => 
+    [notes] => 
+)
+quantityEntered=1000, consumptionBaseMilli=1000, deductionMilli=1000000, stockMilli=50000

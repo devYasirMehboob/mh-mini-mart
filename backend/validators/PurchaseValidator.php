@@ -26,13 +26,15 @@ final class PurchaseValidator{
                 continue;
             }
             $pid = (int) ($row['product_id'] ?? 0);
-            if ($pid < 1 || isset($seen[$pid])) {
-                $e["items.$index.product_id"] = [$pid < 1 ? 'Select a product.' : 'Each product may appear only once.'];
+            $uid = (int) ($row['unit_id'] ?? 0);
+            $key = $pid . '_' . $uid;
+            if ($pid < 1 || isset($seen[$key])) {
+                $e["items.$index.product_id"] = [$pid < 1 ? 'Select a product.' : 'Each product and unit combination may appear only once.'];
                 continue;
             }
-            $seen[$pid] = true;
+            $seen[$key] = true;
             try {
-                $qty = $this->quantity((string) ($row['quantity'] ?? ''));
+                $qty = $this->parseQuantity((string) ($row['quantity'] ?? ''));
             } catch (\InvalidArgumentException $ex) {
                 $e["items.$index.quantity"] = [$ex->getMessage()];
                 continue;
@@ -44,7 +46,7 @@ final class PurchaseValidator{
                 $e["items.$index.unit_cost"] = [$ex->getMessage()];
                 continue;
             }
-            if ($discount > $this->lineTotal($qty, $cost)) {
+            if ($discount > $this->lineTotalFloat($qty, $cost)) {
                 $e["items.$index.line_discount"] = ['Line discount cannot exceed the line value.'];
             }
             
@@ -59,9 +61,10 @@ final class PurchaseValidator{
                 $e["items.$index.expiry_date"] = ['Invalid date.'];
             }
 
-            $items[$pid] = [
+        $items[] = [
                 'product_id' => $pid,
-                'quantity_milli' => $qty,
+                'unit_id' => $uid > 0 ? $uid : null,
+                'quantity_entered' => $qty,
                 'unit_cost_cents' => $cost,
                 'line_discount_cents' => $discount,
                 'batch_number' => $batchNumber === '' ? null : $batchNumber,
@@ -73,7 +76,7 @@ final class PurchaseValidator{
  $money=[];foreach(['overall_discount','tax','shipping_amount','other_charges','amount_paid']as$k)try{$money[$k.'_cents']=$this->money((string)($i[$k]??'0'));}catch(\InvalidArgumentException$ex){$e[$k]=[$ex->getMessage()];}$method=(string)($i['payment_method']??'cash');if(!in_array($method,['cash','card','bank_transfer','mobile_wallet','other'],true))$e['payment_method']=['Select a valid payment method.'];$reference=trim((string)($i['payment_reference']??''));$notes=trim((string)($i['notes']??''));if(mb_strlen($reference)>150)$e['payment_reference']=['Reference must not exceed 150 characters.'];if(mb_strlen($notes)>1000)$e['notes']=['Notes must not exceed 1000 characters.'];$this->fail($e);return['supplier_id'=>$supplier,'supplier_invoice_number'=>$invoice===''?null:$invoice,'purchase_date'=>$date,'request_token'=>$token,'items'=>$items,'payment_method'=>$method,'payment_reference'=>$reference===''?null:$reference,'notes'=>$notes===''?null:$notes]+$money;}
  public function payment(array$i):array{$e=[];try{$amount=$this->money((string)($i['amount']??''),false);}catch(\InvalidArgumentException$ex){$amount=0;$e['amount']=[$ex->getMessage()];}$method=(string)($i['payment_method']??'cash');if(!in_array($method,['cash','card','bank_transfer','mobile_wallet','other'],true))$e['payment_method']=['Select a valid payment method.'];$date=(string)($i['payment_date']??date('Y-m-d'));if(!$this->validDate($date)||$date>date('Y-m-d'))$e['payment_date']=['Enter a valid payment date.'];$reference=trim((string)($i['reference_number']??''));$notes=trim((string)($i['notes']??''));if(mb_strlen($reference)>150)$e['reference_number']=['Reference must not exceed 150 characters.'];if(mb_strlen($notes)>500)$e['notes']=['Notes must not exceed 500 characters.'];$this->fail($e);return['amount_cents'=>$amount,'payment_method'=>$method,'payment_date'=>$date,'reference_number'=>$reference===''?null:$reference,'notes'=>$notes===''?null:$notes];}
  public function cancellation(array$i):string{$r=trim((string)($i['reason']??''));if($r===''||mb_strlen($r)>500)$this->fail(['reason'=>['A cancellation reason of up to 500 characters is required.']]);return$r;}
- private function quantity(string$v):int{if(!preg_match('/^\d{1,9}(?:\.\d{1,3})?$/',$v)||(float)$v<=0)throw new \InvalidArgumentException('Quantity must be greater than zero with up to 3 decimals.');[$w,$f]=array_pad(explode('.',$v,2),2,'');return(int)$w*1000+(int)str_pad($f,3,'0');}
+ private function parseQuantity(string$v):float{if(!preg_match('/^\d{1,9}(?:\.\d{1,3})?$/',$v)||(float)$v<=0)throw new \InvalidArgumentException('Quantity must be greater than zero with up to 3 decimals.');return (float)$v;}
  private function money(string$v,bool$zero=true):int{if(!preg_match('/^\d{1,10}(?:\.\d{1,2})?$/',$v)||(!$zero&&(float)$v<=0))throw new \InvalidArgumentException($zero?'Enter a non-negative amount.':'Amount must be greater than zero.');[$w,$f]=array_pad(explode('.',$v,2),2,'');return(int)$w*100+(int)str_pad($f,2,'0');}
- private function lineTotal(int$q,int$c):int{return intdiv($q*$c+500,1000);}private function validDate(string$v):bool{$d=\DateTime::createFromFormat('Y-m-d',$v);return$d&&$d->format('Y-m-d')===$v;}private function dateOrNull(mixed$v):?string{$s=trim((string)$v);return$this->validDate($s)?$s:null;}private function optionalMoney(mixed$v):?string{$s=trim((string)$v);return$s!==''&&is_numeric($s)&&$s>=0?number_format((float)$s,2,'.',''):null;}private function fail(array$e):void{if($e)throw new HttpException('Some purchase details are invalid.',422,$e);}
+ private function lineTotalFloat(float$q,int$c):int{return (int)round($q*$c);}private function validDate(string$v):bool{$d=\DateTime::createFromFormat('Y-m-d',$v);return$d&&$d->format('Y-m-d')===$v;}private function dateOrNull(mixed$v):?string{$s=trim((string)$v);return$this->validDate($s)?$s:null;}private function optionalMoney(mixed$v):?string{$s=trim((string)$v);return$s!==''&&is_numeric($s)&&$s>=0?number_format((float)$s,2,'.',''):null;}private function fail(array$e):void{if($e)throw new HttpException('Some purchase details are invalid.',422,$e);}
 }

@@ -18,6 +18,7 @@ const groups = [
     label: "Manage store", items: [
       { label: "Products", path: "/products", icon: "products", description: "Product catalogue", permission: "products.view" },
       { label: "Categories", path: "/categories", icon: "categories", description: "Product groups", permission: "categories.manage" },
+      { label: "Units", path: "/units", icon: "cube", description: "Product units", permission: "categories.manage" },
       { label: "Inventory", path: "/inventory", icon: "inventory", description: "Stock and movements", permission: "inventory.view" },
       { label: "Batches", path: "/batches", icon: "cube", description: "Expiry tracking", permission: "inventory.view" },
       { label: "Suppliers", path: "/suppliers", icon: "users", description: "Vendors and balances", permission: "suppliers.view" },

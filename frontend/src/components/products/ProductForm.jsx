@@ -1,12 +1,5 @@
-const unitTypes = [
-  ["piece", "Piece"],
-  ["pack", "Pack"],
-  ["kilogram", "Kilogram"],
-  ["gram", "Gram"],
-  ["dozen", "Dozen"],
-  ["box", "Box"],
-  ["bottle", "Bottle"],
-];
+import { useState, useEffect } from "react";
+import { getProducts } from "../../api/productsApi";
 
 function FieldError({ message }) {
   return message ? <p className="mt-1.5 text-xs text-red-600">{message}</p> : null;
@@ -27,6 +20,7 @@ function ProductForm({
   canViewCosts,
   isEdit,
   categories,
+  units,
   imagePreview,
   isSubmitting,
   submitLabel,
@@ -37,6 +31,18 @@ function ProductForm({
   onCancel,
   onGenerateBarcode,
 }) {
+  const [sourceProducts, setSourceProducts] = useState([]);
+  const [isLoadingSources, setIsLoadingSources] = useState(false);
+
+  useEffect(() => {
+    if (values.stock_mode === 'shared' && sourceProducts.length === 0) {
+      setIsLoadingSources(true);
+      getProducts({ limit: 1000 }).then(data => {
+        setSourceProducts(data.products.filter(p => p.stock_mode !== 'shared'));
+      }).catch(console.error).finally(() => setIsLoadingSources(false));
+    }
+  }, [values.stock_mode]);
+
   return (
     <form onSubmit={onSubmit} noValidate>
       <div className="max-h-[70vh] space-y-6 overflow-y-auto px-6 py-5">
@@ -90,14 +96,89 @@ function ProductForm({
               </select>
               <FieldError message={errors.category_id} />
             </div>
+          </div>
+        </section>
+
+        <section className="border-t border-slate-100 pt-5">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Units & Measurements</h3>
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="product-unit">Unit type</label>
-              <select className={inputClasses(errors.unit_type)} id="product-unit" name="unit_type" value={values.unit_type} onChange={onChange} disabled={isSubmitting}>
-                {unitTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="base-unit">Base unit <span className="text-red-500">*</span></label>
+              <select className={inputClasses(errors.base_unit_id)} id="base-unit" name="base_unit_id" value={values.base_unit_id} onChange={onChange} disabled={isSubmitting}>
+                <option value="">Select base unit</option>
+                {units?.map((u) => <option key={u.id} value={u.id}>{u.name} ({u.symbol})</option>)}
               </select>
-              <FieldError message={errors.unit_type} />
+              <FieldError message={errors.base_unit_id} />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="purchase-unit">Default purchase unit <span className="text-red-500">*</span></label>
+              <select className={inputClasses(errors.default_purchase_unit_id)} id="purchase-unit" name="default_purchase_unit_id" value={values.default_purchase_unit_id} onChange={onChange} disabled={isSubmitting}>
+                <option value="">Select purchase unit</option>
+                {units?.map((u) => <option key={u.id} value={u.id}>{u.name} ({u.symbol})</option>)}
+              </select>
+              <FieldError message={errors.default_purchase_unit_id} />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="sale-unit">Default sale unit <span className="text-red-500">*</span></label>
+              <select className={inputClasses(errors.default_sale_unit_id)} id="sale-unit" name="default_sale_unit_id" value={values.default_sale_unit_id} onChange={onChange} disabled={isSubmitting}>
+                <option value="">Select sale unit</option>
+                {units?.map((u) => <option key={u.id} value={u.id}>{u.name} ({u.symbol})</option>)}
+              </select>
+              <FieldError message={errors.default_sale_unit_id} />
             </div>
           </div>
+          
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="stock-mode">Stock Mode <span className="text-red-500">*</span></label>
+              <select className={inputClasses(errors.stock_mode)} id="stock-mode" name="stock_mode" value={values.stock_mode || 'own'} onChange={onChange} disabled={isSubmitting}>
+                <option value="own">Own Stock</option>
+                <option value="source">Stock Source (Master Inventory)</option>
+                <option value="shared">Shared Variant (Uses Source Stock)</option>
+              </select>
+              <FieldError message={errors.stock_mode} />
+            </div>
+
+            {values.stock_mode === 'shared' && (
+              <>
+                <div className="sm:col-span-2 mt-2 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                  <p className="text-sm text-blue-800 mb-4 font-semibold">Shared Stock Source Details</p>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div>
+                      <label className="mb-2 block text-xs font-semibold text-slate-700">Source Product</label>
+                      <select className={inputClasses(errors.stock_source_id)} name="stock_source_id" value={values.stock_source_id || ''} onChange={onChange} disabled={isSubmitting || isLoadingSources}>
+                        <option value="">Select source product...</option>
+                        {sourceProducts.map(p => (
+                          <option key={p.id} value={p.id}>{p.name} ({p.product_code})</option>
+                        ))}
+                      </select>
+                      {isLoadingSources && <span className="text-xs text-blue-500 mt-1 block">Loading sources...</span>}
+                      <FieldError message={errors.stock_source_id} />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-xs font-semibold text-slate-700">Consumption Quantity</label>
+                      <input className={inputClasses(errors.consumption_quantity)} name="consumption_quantity" type="number" min="0.001" step="0.001" value={values.consumption_quantity || ''} onChange={onChange} disabled={isSubmitting} />
+                      <FieldError message={errors.consumption_quantity} />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-xs font-semibold text-slate-700">Consumption Base Value</label>
+                      <input className={inputClasses(errors.consumption_quantity_base)} name="consumption_quantity_base" type="number" min="0.000001" step="0.000001" value={values.consumption_quantity_base || ''} onChange={onChange} disabled={isSubmitting} placeholder="e.g. 1.000 for 1 base unit" />
+                      <FieldError message={errors.consumption_quantity_base} />
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+            <input className="size-4 accent-emerald-600" name="allow_custom_sale" type="checkbox" checked={values.allow_custom_sale || false} onChange={onChange} disabled={isSubmitting} />
+            <span>
+              <strong className="block text-sm font-semibold text-slate-700">Allow Custom / Fractional Sale</strong>
+              <span className="mt-0.5 block text-xs text-slate-500">Enable this to allow selling in fractional amounts (e.g. 0.25 Kg). Typically for weighable goods or flexible pricing.</span>
+            </span>
+          </label>
+          <FieldError message={errors.allow_custom_sale} />
         </section>
 
         <section className="border-t border-slate-100 pt-5">
@@ -115,11 +196,12 @@ function ProductForm({
             </div>
             <div>
               <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="product-quantity">Quantity</label>
-              <input className={inputClasses(errors.quantity)} id="product-quantity" name="quantity" type="number" min="0" step="0.001" value={values.quantity} onChange={onChange} disabled={isSubmitting || !values.track_stock || values.track_batches || values.track_expiry || isEdit} />
-              {isEdit && <p className="mt-1.5 text-xs text-slate-400">Use Inventory to record quantity changes.</p>}
-              {!isEdit && (values.track_batches || values.track_expiry) && (
+              <input className={inputClasses(errors.quantity)} id="product-quantity" name="quantity" type="number" min="0" step="0.001" value={values.quantity} onChange={onChange} disabled={isSubmitting || !values.track_stock || values.track_batches || values.track_expiry || isEdit || values.stock_mode === 'shared'} />
+              {isEdit && values.stock_mode !== 'shared' && <p className="mt-1.5 text-xs text-slate-400">Use Inventory to record quantity changes.</p>}
+              {!isEdit && (values.track_batches || values.track_expiry) && values.stock_mode !== 'shared' && (
                 <p className="mt-1.5 text-xs text-orange-500">Initial quantity must be 0. Use Purchases to add stock so you can enter the expiry date and batch number.</p>
               )}
+              {values.stock_mode === 'shared' && <p className="mt-1.5 text-xs text-slate-400">Stock is managed via the stock source.</p>}
               <FieldError message={errors.quantity} />
             </div>
             <div>

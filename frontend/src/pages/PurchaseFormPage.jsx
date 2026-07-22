@@ -8,6 +8,7 @@ import {
   updateDraftPurchase,
 } from "../api/purchasesApi";
 import { getSupplierOptions } from "../api/suppliersApi";
+import { getUnits } from "../api/unitsApi";
 import Icon from "../components/Icon";
 import LoadingState from "../components/feedback/LoadingState";
 import PurchaseItemsEditor from "../components/purchases/PurchaseItemsEditor";
@@ -40,6 +41,7 @@ function PurchaseFormPage() {
   const [items, setItems] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [units, setUnits] = useState([]);
   const [productSearch, setProductSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -50,11 +52,13 @@ function PurchaseFormPage() {
     Promise.all([
       getSupplierOptions(),
       getProducts({ status: "active", limit: 100 }),
+      getUnits(),
       id ? getPurchase(id) : null,
     ])
-      .then(([s, p, purchase]) => {
+      .then(([s, p, u, purchase]) => {
         setSuppliers(s);
         setProducts(p.products);
+        setUnits(u.units || u || []);
         if (purchase) {
           if (purchase.purchase_status !== "draft") {
             throw new Error("Only draft purchases can be edited.");
@@ -139,6 +143,7 @@ function PurchaseFormPage() {
           name: p.name,
           product_code: p.product_code,
           unit_type: p.unit_type,
+          unit_id: p.default_purchase_unit_id || p.base_unit_id || "",
           quantity: "1",
           unit_cost: p.purchase_cost || "0",
           line_discount: "0",
@@ -156,8 +161,9 @@ function PurchaseFormPage() {
     return {
       ...form,
       supplier_id: Number(form.supplier_id),
-      items: items.map(({ product_id, quantity, unit_cost, line_discount, batch_number, manufacturing_date, expiry_date }) => ({
+      items: items.map(({ product_id, unit_id, quantity, unit_cost, line_discount, batch_number, manufacturing_date, expiry_date }) => ({
         product_id,
+        unit_id,
         quantity,
         unit_cost,
         line_discount,
@@ -269,6 +275,7 @@ function PurchaseFormPage() {
 
       <PurchaseItemsEditor
         products={products}
+        units={units}
         items={items}
         onSearch={setProductSearch}
         onAdd={add}

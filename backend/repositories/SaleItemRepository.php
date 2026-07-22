@@ -6,10 +6,10 @@ use App\Config\Database;
 final class SaleItemRepository
 {
     public function __construct(private readonly Database $database) {}
-    public function create(array $data): void { $s=$this->database->connection()->prepare('INSERT INTO sale_items (sale_id,product_id,product_name,product_code,quantity,unit_price,purchase_cost,discount_amount,line_total) VALUES (:sale_id,:product_id,:product_name,:product_code,:quantity,:unit_price,:purchase_cost,:discount_amount,:line_total)');$s->execute($data); }
+    public function create(array $data): int { $s=$this->database->connection()->prepare('INSERT INTO sale_items (sale_id,product_id,product_name,product_code,unit_id,unit_name_snapshot,unit_symbol_snapshot,quantity_entered,conversion_to_base_snapshot,quantity_base,unit_price,purchase_cost,discount_amount,line_total) VALUES (:sale_id,:product_id,:product_name,:product_code,:unit_id,:unit_name_snapshot,:unit_symbol_snapshot,:quantity_entered,:conversion_to_base_snapshot,:quantity_base,:unit_price,:purchase_cost,:discount_amount,:line_total)');$s->execute($data); return (int) $this->database->connection()->lastInsertId(); }
     public function findBySale(int $saleId,bool $includePurchaseCost=true): array
     {
-        $columns='id,product_id,product_name,product_code,quantity,unit_price,discount_amount,line_total';
+        $columns='id,product_id,product_name,product_code,unit_id,unit_name_snapshot,unit_symbol_snapshot,quantity_entered,conversion_to_base_snapshot,quantity_base AS quantity,unit_price,discount_amount,line_total';
         if($includePurchaseCost)$columns.=',purchase_cost';
         $s=$this->database->connection()->prepare(
             'SELECT '.$columns.',

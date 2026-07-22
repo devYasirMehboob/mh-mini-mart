@@ -2,6 +2,7 @@ import Icon from "../Icon";
 import ProductImage from "./ProductImage";
 import StatusBadge from "../StatusBadge";
 import StockBadge from "./StockBadge";
+import ReadableStock from "./ReadableStock";
 
 import {formatCurrency} from "../../utils/calculateSaleTotals";
 
@@ -35,7 +36,7 @@ function ProductTable({ products, actionId, canUpdate, canDelete, onView, onEdit
               <td className="px-6 py-4"><span className="block text-sm font-medium text-slate-700">{product.product_code}</span><span className="mt-1 block text-xs text-slate-400">{product.barcode || "No barcode"}</span></td>
               <td className="px-6 py-4 text-sm text-slate-500">{product.category_name}</td>
               <td className="px-6 py-4 text-sm font-semibold text-slate-700">{formatCurrency(Number(product.selling_price))}</td>
-              <td className="px-6 py-4"><StockBadge product={product} /><span className="mt-1.5 block text-xs text-slate-400">{Number(product.track_stock) !== 0 ? Number(product.quantity).toLocaleString() + " " + product.unit_type : ""}</span></td>
+              <td className="px-6 py-4"><StockBadge product={product} /><span className="mt-1.5 block text-xs text-slate-400">{Number(product.track_stock) !== 0 ? <ReadableStock quantity={product.quantity} unitType={product.unit_type} /> : ""}</span></td>
               <td className="px-6 py-4"><StatusBadge status={product.status} /></td>
               <td className="px-6 py-4">
                 <div className="flex items-center justify-end gap-1">

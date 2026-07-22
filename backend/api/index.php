@@ -30,6 +30,9 @@ use App\Controllers\NotificationController;
 use App\Controllers\NotificationPreferenceController;
 use App\Controllers\SystemMaintenanceController;
 use App\Controllers\BatchController;
+use App\Controllers\UnitController;
+use App\Controllers\ProductUnitController;
+use App\Controllers\StockContainerController;
 use App\Http\HttpException;
 use App\Http\JsonResponse;
 use App\Http\Request;
@@ -63,6 +66,9 @@ use App\Repositories\BatchRepository;
 use App\Repositories\PurchaseReturnRepository;
 use App\Repositories\NotificationRepository;
 use App\Repositories\NotificationPreferenceRepository;
+use App\Repositories\UnitRepository;
+use App\Repositories\ProductUnitRepository;
+use App\Repositories\StockContainerRepository;
 use App\Security\SessionManager;
 use App\Services\AuthService;
 use App\Services\DatabaseBackupService;
@@ -99,6 +105,11 @@ use App\Services\InventoryAlertService;
 use App\Services\SupplierAlertService;
 use App\Services\BackupAlertService;
 use App\Services\HeldSaleAlertService;
+use App\Services\UnitConversionService;
+use App\Services\QuantityFormatterService;
+use App\Services\UnitService;
+use App\Services\ProductUnitService;
+use App\Services\StockContainerService;
 use App\Validators\CategoryValidator;
 use App\Validators\ProductValidator;
 use App\Validators\InventoryValidator;
@@ -251,6 +262,16 @@ try {
         $configuration,
         new BatchRepository($database)
     );
+    
+    $unitConversionService = new UnitConversionService($database);
+
+    $unitRepository = new UnitRepository($database);
+    $unitService = new UnitService($unitRepository);
+    $unitController = new UnitController($unitService);
+    
+    $productUnitRepository = new ProductUnitRepository($database);
+    $productUnitService = new ProductUnitService($productUnitRepository);
+    $productUnitController = new ProductUnitController($productUnitService);
     $purchaseController = new PurchaseController($request, $purchaseService, new PurchaseExportService(), $session);
     $purchaseReturnController = new PurchaseReturnController(
         $request,
@@ -318,10 +339,20 @@ $inventoryController = new InventoryController(
         $logger
     );
 
+    $stockContainerRepository = new StockContainerRepository($database);
+
     $posProductRepository = new PosProductRepository($database);
     $heldSaleRepository = new HeldSaleRepository($database);
-    $posController = new PosController($request, new PosService($posProductRepository));
-    $heldSaleController = new HeldSaleController($request, new HeldSaleService($database, $heldSaleRepository, $posProductRepository, new HeldSaleValidator()), $session);
+    $posController = new PosController($request, new PosService($posProductRepository, $stockContainerRepository));
+    $heldSaleController = new HeldSaleController($request, new HeldSaleService($database, $heldSaleRepository, $posProductRepository, new HeldSaleValidator(), $unitConversionService), $session);
+
+    $stockContainerService = new StockContainerService(
+        $stockContainerRepository,
+        new ProductRepository($database),
+        new StockTransactionRepository($database),
+        $activityRepository
+    );
+    $stockContainerController = new StockContainerController($request, $stockContainerService, $barcodeService);
 
     $saleRepository = new SaleRepository($database);
     $salesExportService = new SalesExportService($saleRepository);
@@ -340,7 +371,8 @@ $inventoryController = new InventoryController(
             $configuration,
             $activityRepository,
             new \App\Services\BatchAllocationService(new BatchRepository($database)),
-            new BatchRepository($database)
+            new BatchRepository($database),
+            $unitConversionService
         ),
         $salesExportService,
         $session
@@ -689,7 +721,19 @@ $inventoryController = new InventoryController(
         }
     }
 
-if (str_starts_with($path, '/products')) {
+    if (str_starts_with($path, '/units')) {
+        if ($method === 'GET') $authorizationService->requirePermission($authenticatedUser, 'units.view');
+        if (in_array($method, ['POST','PUT'], true)) $authorizationService->requirePermission($authenticatedUser, 'units.manage');
+        
+        if ($method === 'GET' && $path === '/units') $unitController->index($request);
+        if ($method === 'GET' && $path === '/units/active') $unitController->active($request);
+        if ($method === 'POST' && $path === '/units') $unitController->store($request);
+        if ($method === 'PUT' && preg_match('#^/units/([1-9][0-9]*)$#', $path, $matches) === 1) {
+            $unitController->update($request, (int) $matches[1]);
+        }
+    }
+    
+    if (str_starts_with($path, '/products')) {
         if ($method === 'GET') $authorizationService->requirePermission($authenticatedUser, 'products.view');
         if ($method === 'POST') $authorizationService->requirePermission($authenticatedUser, 'products.create');
         if (in_array($method, ['PUT','PATCH'], true)) $authorizationService->requirePermission($authenticatedUser, 'products.update');
@@ -709,6 +753,24 @@ if (str_starts_with($path, '/products')) {
 
         if ($method === 'POST' && $path === '/products') {
             $productController->store($authenticatedUser);
+        }
+
+        if (preg_match('#^/products/([1-9][0-9]*)/units$#', $path, $matches) === 1) {
+            $authorizationService->requirePermission($authenticatedUser, 'product_units.view');
+            $productId = (int) $matches[1];
+            if ($method === 'GET') $productUnitController->index($request, $productId);
+            if ($method === 'POST') {
+                $authorizationService->requirePermission($authenticatedUser, 'product_units.manage');
+                $productUnitController->store($request, $productId);
+            }
+        }
+        
+        if (preg_match('#^/products/([1-9][0-9]*)/units/([1-9][0-9]*)$#', $path, $matches) === 1) {
+            $authorizationService->requirePermission($authenticatedUser, 'product_units.manage');
+            $productId = (int) $matches[1];
+            $unitId = (int) $matches[2];
+            if ($method === 'PUT') $productUnitController->update($request, $productId, $unitId);
+            if ($method === 'DELETE') $productUnitController->destroy($request, $productId, $unitId);
         }
 
         if (preg_match('#^/products/([1-9][0-9]*)$#', $path, $matches) === 1) {
@@ -734,12 +796,39 @@ if (str_starts_with($path, '/products')) {
         }
     }
 
+    // Stock Containers
+    if (preg_match('#^/products/([1-9][0-9]*)/containers$#', $path, $matches) === 1) {
+        $authorizationService->requirePermission($authenticatedUser, 'inventory.view');
+        if ($method === 'GET') $stockContainerController->indexByProduct((int)$matches[1]);
+    }
+
+    if (preg_match('#^/containers/([1-9][0-9]*)$#', $path, $matches) === 1) {
+        $authorizationService->requirePermission($authenticatedUser, 'inventory.view');
+        if ($method === 'GET') $stockContainerController->show((int)$matches[1]);
+    }
+
+    if (preg_match('#^/containers/([1-9][0-9]*)/barcode/regenerate$#', $path, $matches) === 1) {
+        $authorizationService->requirePermission($authenticatedUser, 'inventory.adjust');
+        if ($method === 'POST') $stockContainerController->regenerateBarcode((int)$matches[1], $authenticatedUser);
+    }
+
+    if (preg_match('#^/containers/([1-9][0-9]*)/barcode$#', $path, $matches) === 1) {
+        $authorizationService->requirePermission($authenticatedUser, 'inventory.adjust');
+        if ($method === 'PUT') $stockContainerController->updateBarcode((int)$matches[1], $authenticatedUser);
+    }
+
+    if (preg_match('#^/containers/([1-9][0-9]*)/barcode/preview$#', $path, $matches) === 1) {
+        $authorizationService->requirePermission($authenticatedUser, 'inventory.view');
+        if ($method === 'GET') $stockContainerController->previewBarcode((int)$matches[1]);
+    }
+
     if (str_starts_with($path, '/batches')) {
         $authorizationService->requirePermission($authenticatedUser, 'inventory.view');
         
         if ($method === 'GET' && $path === '/batches') {
             $batchController->index();
         }
+
         
         if ($method === 'GET' && $path === '/batches/summary') {
             $batchController->summary();
@@ -817,6 +906,10 @@ if (str_starts_with($path, '/inventory')) {
 
     if ($method === 'GET' && $path === '/pos/products') { $authorizationService->requirePermission($authenticatedUser, 'pos.access'); $posController->products(); }
     if ($method === 'GET' && $path === '/pos/categories') { $authorizationService->requirePermission($authenticatedUser, 'pos.access'); $posController->categories(); }
+    if ($method === 'GET' && preg_match('#^/pos/barcodes/(.+)$#', $path, $matches) === 1) {
+        $authorizationService->requirePermission($authenticatedUser, 'pos.access');
+        $posController->resolveBarcode(rawurldecode($matches[1]));
+    }
 
     if (str_starts_with($path, '/held-sales')) {
         $authorizationService->requirePermission($authenticatedUser, 'sales.hold');

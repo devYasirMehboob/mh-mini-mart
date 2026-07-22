@@ -18,9 +18,9 @@ final class InventoryRepository
         $statement = $this->database->connection()->prepare(
             'SELECT
                 SUM(track_stock = 1) AS total_tracked,
-                SUM(track_stock = 1 AND quantity > minimum_stock) AS in_stock,
-                SUM(track_stock = 1 AND quantity > 0 AND quantity <= minimum_stock) AS low_stock,
-                SUM(track_stock = 1 AND quantity <= 0) AS out_of_stock
+                SUM(track_stock = 1 AND stock_quantity_base > minimum_stock) AS in_stock,
+                SUM(track_stock = 1 AND stock_quantity_base > 0 AND stock_quantity_base <= minimum_stock) AS low_stock,
+                SUM(track_stock = 1 AND stock_quantity_base <= 0) AS out_of_stock
              FROM products'
         );
         $statement->execute();
@@ -53,11 +53,11 @@ final class InventoryRepository
         }
 
         if ($filters['stock_status'] === 'in_stock') {
-            $where[] = 'p.track_stock = 1 AND p.quantity > p.minimum_stock';
+            $where[] = 'p.track_stock = 1 AND p.stock_quantity_base > p.minimum_stock';
         } elseif ($filters['stock_status'] === 'low_stock') {
-            $where[] = 'p.track_stock = 1 AND p.quantity > 0 AND p.quantity <= p.minimum_stock';
+            $where[] = 'p.track_stock = 1 AND p.stock_quantity_base > 0 AND p.stock_quantity_base <= p.minimum_stock';
         } elseif ($filters['stock_status'] === 'out_of_stock') {
-            $where[] = 'p.track_stock = 1 AND p.quantity <= 0';
+            $where[] = 'p.track_stock = 1 AND p.stock_quantity_base <= 0';
         } elseif ($filters['stock_status'] === 'tracking_disabled') {
             $where[] = 'p.track_stock = 0';
         }
@@ -72,11 +72,12 @@ final class InventoryRepository
 
         $statement = $this->database->connection()->prepare(
             'SELECT p.id, p.category_id, c.name AS category_name, p.name,
-                    p.product_code, p.barcode, p.quantity, p.minimum_stock,
-                    p.unit_type, p.image, p.track_stock, p.status,
+                    p.product_code, p.barcode, p.stock_quantity_base AS quantity, p.minimum_stock,
+                    COALESCE(u.name, \'piece\') AS unit_type, p.image, p.track_stock, p.status,
                     p.updated_at
              FROM products p
-             INNER JOIN categories c ON c.id = p.category_id'
+             INNER JOIN categories c ON c.id = p.category_id
+             LEFT JOIN units u ON u.id = p.base_unit_id'
              . $whereSql .
             ' ORDER BY p.name ASC
               LIMIT :limit OFFSET :offset'
@@ -104,10 +105,11 @@ final class InventoryRepository
     public function findForUpdate(int $productId): ?array
     {
         $statement = $this->database->connection()->prepare(
-            'SELECT id, name, quantity, minimum_stock, unit_type,
-                    track_stock, status
-             FROM products
-             WHERE id = :id
+            'SELECT p.id, p.name, p.stock_quantity_base AS quantity, p.minimum_stock, 
+                    COALESCE(u.name, \'piece\') AS unit_type, p.track_stock, p.status
+             FROM products p
+             LEFT JOIN units u ON u.id = p.base_unit_id
+             WHERE p.id = :id
              FOR UPDATE'
         );
         $statement->execute(['id' => $productId]);
@@ -119,7 +121,7 @@ final class InventoryRepository
     public function updateQuantity(int $productId, string $newQuantity): void
     {
         $statement = $this->database->connection()->prepare(
-            'UPDATE products SET quantity = :quantity WHERE id = :id'
+            'UPDATE products SET stock_quantity_base = :quantity WHERE id = :id'
         );
         $statement->execute([
             'id' => $productId,

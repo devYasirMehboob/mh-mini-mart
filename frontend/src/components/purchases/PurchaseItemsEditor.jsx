@@ -4,6 +4,7 @@ import { formatCurrency } from "../../utils/calculateSaleTotals";
 
 function PurchaseItemsEditor({
   products,
+  units,
   items,
   onChange,
   onAdd,
@@ -86,9 +87,23 @@ function PurchaseItemsEditor({
                     <tr>
                       <td className="p-3">
                         <strong>{item.name}</strong>
-                        <small className="block text-slate-400">
-                          {item.product_code} · {item.unit_type}
-                        </small>
+                        <div className="mt-1 flex items-center gap-2">
+                          <small className="text-slate-400">
+                            {item.product_code}
+                          </small>
+                          <select
+                            value={item.unit_id || ""}
+                            onChange={(e) => onChange(item.product_id, "unit_id", e.target.value)}
+                            className="h-7 rounded-md border border-slate-200 px-2 text-xs text-slate-600 outline-none focus:border-blue-500"
+                          >
+                            <option value="">Select unit</option>
+                            {units?.map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.name} ({u.symbol})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </td>
                       {["quantity", "unit_cost", "line_discount"].map((key) => (
                         <td key={key} className="p-3 align-top">

@@ -14,6 +14,7 @@ use App\Repositories\StockTransactionRepository;
 use App\Repositories\SupplierRepository;
 use App\Validators\PurchaseValidator;
 use App\Repositories\BatchRepository;
+use App\Services\UnitConversionService;
 use Throwable;
 
 final class PurchaseService
@@ -30,7 +31,8 @@ final class PurchaseService
         private readonly PurchaseValidator $validator,
         private readonly ActivityLogRepository $activity,
         private readonly SystemConfigurationService $config,
-        private readonly ?BatchRepository $batches = null
+        private readonly ?BatchRepository $batches = null,
+        private readonly ?UnitConversionService $unitConversionService = null
     ) {
     }
 
@@ -140,7 +142,12 @@ final class PurchaseService
                     'product_id' => $line['product']['id'],
                     'product_name' => $line['product']['name'],
                     'product_code' => $line['product']['product_code'],
-                    'quantity' => $this->quantity($line['quantity']),
+                    'unit_id' => $line['unit_id'],
+                    'unit_name_snapshot' => $line['unit_name'],
+                    'unit_symbol_snapshot' => $line['unit_symbol'],
+                    'quantity_entered' => $this->quantity((int)round($line['quantity_entered'] * 1000)),
+                    'conversion_to_base_snapshot' => number_format($line['conversion_to_base'], 6, '.', ''),
+                    'quantity_base' => $this->quantity($line['quantity']),
                     'unit_cost' => $this->money($line['cost']),
                     'line_discount' => $this->money($line['discount']),
                     'tax_amount' => '0.00',
@@ -200,14 +207,18 @@ final class PurchaseService
 
     private function calculate(array $d): array
     {
-        $locked = $this->products->findManyForUpdate(array_keys($d['items']));
-        if (count($locked) !== count($d['items'])) {
+        $productIds = array_unique(array_column($d['items'], 'product_id'));
+        $locked = $this->products->findManyForUpdate($productIds);
+        if (count($locked) !== count($productIds)) {
             throw new HttpException('One or more selected products no longer exist.', 409);
         }
 
         $lines = [];
         $subtotal = 0;
-        foreach ($d['items'] as $id => $row) {
+        foreach ($d['items'] as $row) {
+            $id = $row['product_id'];
+            $unitId = $row['unit_id'];
+            $quantityEntered = (float)$row['quantity_entered'];
             $product = $locked[$id];
             if ($product['status'] !== 'active') {
                 throw new HttpException($product['name'] . ' is inactive.', 422);
@@ -225,7 +236,31 @@ final class PurchaseService
                 }
             }
 
-            $gross = intdiv($row['quantity_milli'] * $row['unit_cost_cents'] + 500, 1000);
+            $conversionFactor = 1.0;
+            $unitName = null;
+            $unitSymbol = null;
+            
+            if ($unitId !== null && $this->unitConversionService !== null) {
+                try {
+                    $conversion = $this->unitConversionService->getConversionDetails($id, $unitId);
+                    $conversionFactor = (float)$conversion['conversion_to_base'];
+                    $unitName = $conversion['unit_name'];
+                    $unitSymbol = $conversion['unit_symbol'];
+                } catch (\Exception $e) {
+                    throw new HttpException("Invalid unit selected for {$product['name']}.", 422);
+                }
+            } else if ($product['base_unit_id'] && $this->unitConversionService !== null) {
+                try {
+                    $conversion = $this->unitConversionService->getConversionDetails($id, (int)$product['base_unit_id']);
+                    $unitName = $conversion['unit_name'];
+                    $unitSymbol = $conversion['unit_symbol'];
+                    $unitId = (int)$product['base_unit_id'];
+                } catch (\Exception $e) {}
+            }
+            
+            $quantityMilli = (int)round($quantityEntered * $conversionFactor * 1000);
+            $gross = (int)round($quantityEntered * $row['unit_cost_cents']);
+            
             if ($row['line_discount_cents'] > $gross) {
                 throw new HttpException('Line discount cannot exceed ' . $product['name'] . ' line value.', 422);
             }
@@ -235,7 +270,12 @@ final class PurchaseService
             
             $lines[] = [
                 'product' => $product,
-                'quantity' => $row['quantity_milli'],
+                'unit_id' => $unitId,
+                'unit_name' => $unitName,
+                'unit_symbol' => $unitSymbol,
+                'quantity_entered' => $quantityEntered,
+                'conversion_to_base' => $conversionFactor,
+                'quantity' => $quantityMilli,
                 'cost' => $row['unit_cost_cents'],
                 'discount' => $row['line_discount_cents'],
                 'total' => $total,

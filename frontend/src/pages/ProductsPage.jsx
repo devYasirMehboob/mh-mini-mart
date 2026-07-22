@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getCategories } from "../api/categoriesApi";
+import { getUnits } from "../api/unitsApi";
 import {
   createProduct,
   deleteProduct,
@@ -33,7 +34,15 @@ const emptyForm = {
   selling_price: "",
   quantity: "0",
   minimum_stock: "0",
-  unit_type: "piece",
+  base_unit_id: "",
+  default_purchase_unit_id: "",
+  default_sale_unit_id: "",
+  stock_mode: "own",
+  stock_source_id: "",
+  consumption_quantity: "",
+  consumption_unit_id: "",
+  consumption_quantity_base: "",
+  allow_custom_sale: false,
   track_stock: true,
   track_batches: false,
   track_expiry: false,
@@ -62,6 +71,7 @@ function ProductsPage() {
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [units, setUnits] = useState([]);
   const [filters, setFilters] = useState(defaultFilters);
   const [appliedFilters, setAppliedFilters] = useState(defaultFilters);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, total_pages: 1 });
@@ -98,8 +108,12 @@ function ProductsPage() {
 
     async function initialize() {
       try {
-        const categoryData = await getCategories();
+        const [categoryData, unitsData] = await Promise.all([
+          getCategories(),
+          getUnits()
+        ]);
         setCategories(categoryData.filter((category) => category.status === "active"));
+        setUnits(unitsData.units || unitsData || []);
       } catch (error) {
         alert.error(normalizeApiError(error).message);
       }
@@ -166,7 +180,15 @@ function ProductsPage() {
         selling_price: latest.selling_price,
         quantity: latest.quantity,
         minimum_stock: latest.minimum_stock,
-        unit_type: latest.unit_type,
+        base_unit_id: latest.base_unit_id ? String(latest.base_unit_id) : "",
+        default_purchase_unit_id: latest.default_purchase_unit_id ? String(latest.default_purchase_unit_id) : "",
+        default_sale_unit_id: latest.default_sale_unit_id ? String(latest.default_sale_unit_id) : "",
+        stock_mode: latest.stock_mode || "own",
+        stock_source_id: latest.stock_source_id ? String(latest.stock_source_id) : "",
+        consumption_quantity: latest.consumption_quantity ?? "",
+        consumption_unit_id: latest.consumption_unit_id ? String(latest.consumption_unit_id) : "",
+        consumption_quantity_base: latest.consumption_quantity_base ?? "",
+        allow_custom_sale: Boolean(Number(latest.allow_custom_sale)),
         track_stock: Boolean(Number(latest.track_stock)),
         track_batches: Boolean(Number(latest.track_batches)),
         track_expiry: Boolean(Number(latest.track_expiry)),
@@ -410,11 +432,12 @@ function ProductsPage() {
       </section>
 
       <Modal isOpen={formMode !== null} title={formMode === "edit" ? "Edit product" : "Add product"} description={formMode === "edit" ? "Update product details, pricing, and stock." : "Add a new product to the shop catalogue."} onClose={closeForm} size="lg">
-        <ProductForm values={formValues} errors={formErrors} canViewCosts={canViewCosts} isEdit={formMode === "edit"} categories={categories} imagePreview={imagePreview} isSubmitting={isSubmitting} submitLabel={formMode === "edit" ? "Save changes" : "Add product"} onChange={handleFormChange} onImageChange={handleImageChange} onRemoveImage={removeImage} onSubmit={handleSubmit} onCancel={closeForm} onGenerateBarcode={handleGenerateBarcode} />
+        <ProductForm values={formValues} errors={formErrors} canViewCosts={canViewCosts} isEdit={formMode === "edit"} categories={categories} units={units} imagePreview={imagePreview} isSubmitting={isSubmitting} submitLabel={formMode === "edit" ? "Save changes" : "Add product"} onChange={handleFormChange} onImageChange={handleImageChange} onRemoveImage={removeImage} onSubmit={handleSubmit} onCancel={closeForm} onGenerateBarcode={handleGenerateBarcode} />
       </Modal>
 
       <Modal isOpen={detailsProduct !== null} title="Product details" description="Complete product information." onClose={() => setDetailsProduct(null)} size="lg">
-        {detailsProduct && <ProductDetails product={detailsProduct} canViewCosts={canViewCosts} onClose={() => setDetailsProduct(null)} />}
+        {detailsProduct && <ProductDetails product={detailsProduct} canViewCosts={canViewCosts} units={units} onClose={() => setDetailsProduct(null)} />}
+
       </Modal>
     </div>
   );

@@ -17,6 +17,8 @@ use App\Repositories\BatchRepository;
 use App\Validators\SaleValidator;
 use PDOException;
 use Throwable;
+use Exception;
+use App\Services\UnitConversionService;
 
 final class SaleService
 {
@@ -33,7 +35,8 @@ final class SaleService
         private readonly SystemConfigurationService $configuration,
         private readonly ActivityLogRepository $activity,
         private readonly ?BatchAllocationService $batchAllocation = null,
-        private readonly ?BatchRepository $batchRepository = null
+        private readonly ?BatchRepository $batchRepository = null,
+        private readonly ?UnitConversionService $unitConversionService = null
     ) {
     }
 
@@ -62,50 +65,123 @@ final class SaleService
                 }
             }
 
-            $locked = $this->products->findManyForUpdate(array_keys($data['items']));
-            if (count($locked) !== count($data['items'])) {
+            $productIds = array_unique(array_column($data['items'], 'product_id'));
+            // Lock the sold products first
+            $locked = $this->products->findManyForUpdate($productIds);
+            if (count($locked) !== count($productIds)) {
                 throw new HttpException('One or more products are no longer available.', 409);
+            }
+
+            // Identify and lock any shared stock sources
+            $sourceIds = [];
+            foreach ($locked as $product) {
+                if ($product['stock_mode'] === 'shared' && $product['stock_source_id']) {
+                    $sourceIds[] = (int)$product['stock_source_id'];
+                }
+            }
+            $sourceIds = array_unique($sourceIds);
+            if (!empty($sourceIds)) {
+                $lockedSources = $this->products->findManyForUpdate($sourceIds);
+                foreach ($lockedSources as $source) {
+                    $locked[$source['id']] = $source; // add them to the locked array
+                }
             }
 
             $lines = [];
             $subtotal = 0;
             
-            foreach ($data['items'] as $productId => $quantityMilli) {
+            foreach ($data['items'] as $item) {
+                $productId = $item['product_id'];
+                $unitId = $item['unit_id'] ?? null;
+                $quantityEntered = (float) $item['quantity'];
+                
                 $product = $locked[$productId];
                 if ($product['status'] !== 'active') {
                     throw new HttpException($product['name'] . ' is no longer available.', 409);
                 }
-                if (in_array($product['unit_type'], ['piece', 'pack', 'dozen', 'box', 'bottle'], true) && $quantityMilli % 1000 !== 0) {
+                
+                $conversionFactor = 1.0;
+                $unitName = null;
+                $unitSymbol = null;
+                $unitCents = $this->toScaled((string)$product['selling_price'], 2);
+                
+                if ($unitId !== null && $this->unitConversionService !== null) {
+                    try {
+                        $conversion = $this->unitConversionService->getConversionDetails($productId, $unitId);
+                        $conversionFactor = (float)$conversion['conversion_to_base'];
+                        $unitName = $conversion['unit_name'];
+                        $unitSymbol = $conversion['unit_symbol'];
+                        if ($conversion['selling_price'] !== null) {
+                            $unitCents = $this->toScaled((string)$conversion['selling_price'], 2);
+                        } else {
+                            $unitCents = (int)round($unitCents * $conversionFactor);
+                        }
+                    } catch (Exception $e) {
+                        throw new HttpException("Invalid unit selected for {$product['name']}.", 422);
+                    }
+                } else if ($product['base_unit_id'] && $this->unitConversionService !== null) {
+                    try {
+                        $conversion = $this->unitConversionService->getConversionDetails($productId, (int)$product['base_unit_id']);
+                        $unitName = $conversion['unit_name'];
+                        $unitSymbol = $conversion['unit_symbol'];
+                        $unitId = (int)$product['base_unit_id'];
+                    } catch (Exception $e) {}
+                }
+                
+                $quantityMilli = (int)round($quantityEntered * $conversionFactor * 1000);
+                
+                if (!(bool)$product['allow_custom_sale'] && $quantityMilli % 1000 !== 0) {
                     throw new HttpException($product['name'] . ' must use a whole-number quantity.', 422);
                 }
                 
-                $stockMilli = $this->toScaled((string)$product['quantity'], 3);
-                if ($stockEnabled && !$allowNegative && (int)$product['track_stock'] === 1 && $quantityMilli > $stockMilli) {
-                    throw new HttpException('Only ' . $this->quantity($stockMilli) . ' ' . $product['unit_type'] . ' of ' . $product['name'] . ' are available.', 409, ['items' => ['Insufficient stock for ' . $product['name'] . '.']]);
+                // Determine which product holds the stock
+                $stockHolder = $product;
+                $deductionMilli = $quantityMilli;
+
+                if ($product['stock_mode'] === 'shared' && $product['stock_source_id']) {
+                    $stockHolder = $locked[(int)$product['stock_source_id']];
+                    // Calculate deduction based on consumption_quantity_base
+                    $consumptionBaseMilli = (int)round((float)$product['consumption_quantity_base'] * 1000);
+                    $deductionMilli = (int)round($quantityEntered * $consumptionBaseMilli);
+                }
+
+                $stockMilli = $this->toScaled((string)$stockHolder['quantity'], 3);
+                if ($stockEnabled && !$allowNegative && (int)$stockHolder['track_stock'] === 1 && $deductionMilli > $stockMilli) {
+                    $unitStr = $unitName ?? 'base units';
+                    $targetName = $product['stock_mode'] === 'shared' ? "{$product['name']} (from source {$stockHolder['name']})" : $product['name'];
+                    throw new HttpException('Only ' . $this->quantity((int)round($stockMilli / $conversionFactor)) . ' ' . $unitStr . ' of ' . $targetName . ' are available.', 409, ['items' => ['Insufficient stock for ' . $targetName . '.']]);
                 }
 
                 $allocations = [];
-                if ($stockEnabled && (int)$product['track_batches'] === 1 && $this->batchAllocation !== null) {
+                if ($stockEnabled && (int)$stockHolder['track_batches'] === 1 && $this->batchAllocation !== null) {
                     try {
-                        $allocations = $this->batchAllocation->allocate((int)$product['id'], (float)$quantityMilli);
+                        $targetProductId = (int)($product['stock_mode'] === 'shared' ? $stockHolder['id'] : $product['id']);
+                        $targetDeduction = (float)($product['stock_mode'] === 'shared' ? $deductionMilli : $quantityMilli);
+                        $allocations = $this->batchAllocation->allocate($targetProductId, $targetDeduction);
                     } catch (HttpException $e) {
                         throw new HttpException("Not enough valid/unexpired stock for batch-tracked product: {$product['name']}", 409);
                     }
                 }
                 
-                $unitCents = $this->toScaled((string)$product['selling_price'], 2);
                 $costCents = $this->toScaled((string)$product['purchase_cost'], 2);
-                $lineCents = intdiv($unitCents * $quantityMilli + 500, 1000);
+                $lineCents = (int)round($unitCents * $quantityEntered);
                 $subtotal += $lineCents;
                 
                 $lines[] = [
                     'product' => $product,
+                    'unit_id' => $unitId,
+                    'unit_name' => $unitName,
+                    'unit_symbol' => $unitSymbol,
+                    'quantity_entered' => $quantityEntered,
+                    'conversion_to_base' => $conversionFactor,
                     'quantity_milli' => $quantityMilli,
                     'unit_cents' => $unitCents,
                     'cost_cents' => $costCents,
                     'line_cents' => $lineCents,
                     'stock_milli' => $stockMilli,
-                    'allocations' => $allocations
+                    'allocations' => $allocations,
+                    'stock_holder' => $stockHolder,
+                    'deduction_milli' => $deductionMilli
                 ];
             }
             
@@ -173,16 +249,24 @@ final class SaleService
                     'product_id' => $product['id'],
                     'product_name' => $product['name'],
                     'product_code' => $product['product_code'],
-                    'quantity' => $this->quantity($line['quantity_milli']),
+                    'unit_id' => $line['unit_id'],
+                    'unit_name_snapshot' => $line['unit_name'],
+                    'unit_symbol_snapshot' => $line['unit_symbol'],
+                    'quantity_entered' => $this->quantity((int)round($line['quantity_entered'] * 1000)),
+                    'conversion_to_base_snapshot' => number_format($line['conversion_to_base'], 6, '.', ''),
+                    'quantity_base' => $this->quantity($line['quantity_milli']),
                     'unit_price' => $this->money($line['unit_cents']),
                     'purchase_cost' => $this->money($line['cost_cents']),
                     'discount_amount' => $this->money($lineDiscount),
                     'line_total' => $this->money($line['line_cents'])
                 ]);
                 
-                if ($stockEnabled && (int)$product['track_stock'] === 1) {
-                    $newStock = $line['stock_milli'] - $line['quantity_milli'];
-                    $this->products->updateQuantity((int)$product['id'], $this->quantity($newStock));
+                $stockHolder = $line['stock_holder'];
+                $deductionMilli = $line['deduction_milli'];
+
+                if ($stockEnabled && (int)$stockHolder['track_stock'] === 1) {
+                    $newStock = $line['stock_milli'] - $deductionMilli;
+                    $this->products->updateQuantity((int)$stockHolder['id'], $this->quantity($newStock));
                     
                     if (!empty($line['allocations']) && $this->batchRepository !== null) {
                         foreach ($line['allocations'] as $allocation) {
@@ -199,7 +283,7 @@ final class SaleService
                             $this->batchRepository->updateQuantity((int)$batch['id'], $this->quantity((int)$newBatchQty));
 
                             $this->stockTransactions->create([
-                                'product_id' => $product['id'],
+                                'product_id' => $stockHolder['id'],
                                 'user_id' => $cashierId,
                                 'transaction_type' => 'sale',
                                 'quantity' => $this->quantity((int)$allocatedQty),
@@ -213,10 +297,10 @@ final class SaleService
                         }
                     } else {
                         $this->stockTransactions->create([
-                            'product_id' => $product['id'],
+                            'product_id' => $stockHolder['id'],
                             'user_id' => $cashierId,
                             'transaction_type' => 'sale',
-                            'quantity' => $this->quantity($line['quantity_milli']),
+                            'quantity' => $this->quantity($deductionMilli),
                             'previous_stock' => $this->quantity($line['stock_milli']),
                             'new_stock' => $this->quantity($newStock),
                             'reason' => 'Sale ' . $invoice,
@@ -400,29 +484,40 @@ final class SaleService
 
     private function restoreStock(array $items, int $userId, string $action, int $referenceId, string $invoice, string $reason): void
     {
-        $ids = array_values(array_unique(array_map(static fn(array $item): int => (int) $item['product_id'], $items)));
-        $products = $this->products->findManyForUpdate($ids);
-        
-        if (count($products) !== count($ids)) {
+        // First, check if there are any stock transactions for this sale.
+        // If there are none, it means stock tracking was disabled, or no items had it enabled.
+        $saleId = (int)$items[0]['sale_id'];
+        $transactions = $this->stockTransactions->findByReference('sale', $saleId);
+
+        if (empty($transactions)) {
+            return;
+        }
+
+        // Collect all unique product IDs from the transactions
+        $productIds = array_values(array_unique(array_column($transactions, 'product_id')));
+        $products = $this->products->findManyForUpdate($productIds);
+
+        if (count($products) !== count($productIds)) {
             throw new HttpException('Stock could not be restored because a linked product is unavailable.', 409);
         }
-        
-        foreach ($items as $item) {
-            $product = $products[(int)$item['product_id']];
-            if ((int)($item['stock_was_posted'] ?? 0) !== 1) {
-                continue;
-            }
+
+        foreach ($transactions as $transaction) {
+            $product = $products[(int)$transaction['product_id']];
             
             $previous = $this->toScaled((string)$product['quantity'], 3);
-            $quantity = $this->toScaled((string)$item['quantity'], 3);
+            $quantity = $this->toScaled((string)$transaction['quantity_base'], 3);
             $new = $previous + $quantity;
             
             $this->products->updateQuantity((int)$product['id'], $this->quantity($new));
             
-            // For batches, we should ideally find the sale_item_batches and restore them
-            // In a simple MVP, we just adjust stock. Restoring exact batches requires
-            // fetching them from sale_item_batches and adding to remaining_quantity.
-            
+            if (!empty($transaction['batch_id']) && $this->batchRepository !== null) {
+                $batch = $this->batchRepository->find((int)$transaction['batch_id']);
+                if ($batch) {
+                    $newBatchQty = (float)$batch['remaining_quantity'] + ($quantity / 1000);
+                    $this->batchRepository->updateQuantity((int)$batch['id'], $this->quantity((int)round($newBatchQty * 1000)));
+                }
+            }
+
             $this->stockTransactions->create([
                 'product_id' => $product['id'],
                 'user_id' => $userId,
@@ -432,7 +527,8 @@ final class SaleService
                 'new_stock' => $this->quantity($new),
                 'reason' => ucfirst($action) . ' ' . $invoice . ': ' . $reason,
                 'reference_type' => $action,
-                'reference_id' => $referenceId
+                'reference_id' => $referenceId,
+                'batch_id' => $transaction['batch_id'] ?? null
             ]);
         }
     }

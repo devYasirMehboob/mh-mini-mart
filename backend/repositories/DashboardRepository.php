@@ -33,7 +33,7 @@ final class DashboardRepository
     {
         [$filter, $parameters] = $this->cashierFilter($cashierId);
         $statement = $this->database->connection()->prepare(
-            'SELECT COALESCE(SUM(si.purchase_cost * si.quantity), 0)
+            'SELECT COALESCE(SUM(si.purchase_cost * si.quantity_base), 0)
              FROM sale_items si
              INNER JOIN sales s ON s.id = si.sale_id
              WHERE s.status = :status
@@ -58,8 +58,8 @@ final class DashboardRepository
     {
         $statement = $this->database->connection()->prepare(
             'SELECT COALESCE(SUM(status = :active), 0) AS active_products,
-                    COALESCE(SUM(track_stock = 1 AND quantity > 0 AND quantity <= minimum_stock), 0) AS low_stock,
-                    COALESCE(SUM(track_stock = 1 AND quantity <= 0), 0) AS out_of_stock
+                    COALESCE(SUM(track_stock = 1 AND stock_quantity_base > 0 AND stock_quantity_base <= minimum_stock), 0) AS low_stock,
+                    COALESCE(SUM(track_stock = 1 AND stock_quantity_base <= 0), 0) AS out_of_stock
              FROM products'
         );
         $statement->execute(['active' => 'active']);
@@ -91,7 +91,7 @@ final class DashboardRepository
         [$filter, $parameters] = $this->cashierFilter($cashierId);
         $statement = $this->database->connection()->prepare(
             "SELECT si.product_id, si.product_name, si.product_code,
-                    SUM(si.quantity) AS quantity_sold,
+                    SUM(si.quantity_base) AS quantity_sold,
                     SUM(si.line_total - si.discount_amount) AS sales_amount
              FROM sale_items si
              INNER JOIN sales s ON s.id = si.sale_id

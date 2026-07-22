@@ -99,6 +99,8 @@ final class ProductService
                 $product['barcode_source'] = 'generated';
             }
 
+            $this->products->syncUnits((int) $product['id'], $data['base_unit_id'] ?? null, $data['default_purchase_unit_id'] ?? null, $data['default_sale_unit_id'] ?? null);
+
             $quantity = $this->toMilli((string) $product['quantity']);
 
             if ((int) $product['track_stock'] === 1 && $quantity > 0) {
@@ -159,6 +161,7 @@ final class ProductService
 
         try {
             $updated = $this->products->update($id, $data);
+            $this->products->syncUnits($id, $data['base_unit_id'] ?? null, $data['default_purchase_unit_id'] ?? null, $data['default_sale_unit_id'] ?? null);
             $this->activity->log($userId, 'product.updated', 'Product ' . $updated['name'] . ' updated.');
         } catch (Throwable $exception) {
             $this->images->delete($newImage);

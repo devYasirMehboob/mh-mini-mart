@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import AppLayout from "./layouts/AppLayout";
 import AccessDeniedPage from "./pages/AccessDeniedPage";
 import CategoriesPage from "./pages/CategoriesPage";
+import UnitsPage from "./pages/UnitsPage";
 import BackupsPage from "./pages/BackupsPage";
 import DashboardPage from "./pages/DashboardPage";
 import ExpensesPage from "./pages/ExpensesPage";
@@ -40,6 +41,7 @@ function App() {
         <Route path="pos" element={permitted("pos.access", <PosPage />)} />
         <Route path="sales" element={permitted("sales.view", <SalesPage />)} />
         <Route path="categories" element={permitted("categories.manage", <CategoriesPage />)} />
+        <Route path="units" element={permitted("categories.manage", <UnitsPage />)} />
         <Route path="products" element={permitted("products.view", <ProductsPage />)} />
         <Route path="products/labels" element={permitted("labels.print", <BarcodeLabelsPage />)} />
         <Route path="inventory" element={permitted("inventory.view", <InventoryPage />)} />

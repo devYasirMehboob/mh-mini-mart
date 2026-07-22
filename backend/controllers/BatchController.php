@@ -48,9 +48,9 @@ final class BatchController
         $summaryStatement = $this->database->connection()->prepare(
             'SELECT 
                 COUNT(*) as total_batches,
-                SUM(CASE WHEN status = "active" AND remaining_quantity > 0 THEN 1 ELSE 0 END) as active_batches,
-                SUM(CASE WHEN status = "active" AND remaining_quantity > 0 AND expiry_date < CURRENT_DATE THEN 1 ELSE 0 END) as expired_batches,
-                SUM(CASE WHEN status = "active" AND remaining_quantity > 0 AND expiry_date >= CURRENT_DATE AND expiry_date <= DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY) THEN 1 ELSE 0 END) as near_expiry_batches,
+                SUM(CASE WHEN status = "active" AND remaining_quantity_base > 0 THEN 1 ELSE 0 END) as active_batches,
+                SUM(CASE WHEN status = "active" AND remaining_quantity_base > 0 AND expiry_date < CURRENT_DATE THEN 1 ELSE 0 END) as expired_batches,
+                SUM(CASE WHEN status = "active" AND remaining_quantity_base > 0 AND expiry_date >= CURRENT_DATE AND expiry_date <= DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY) THEN 1 ELSE 0 END) as near_expiry_batches,
                 SUM(CASE WHEN status = "blocked" THEN 1 ELSE 0 END) as blocked_batches
              FROM product_batches'
         );

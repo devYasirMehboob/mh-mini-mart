@@ -86,7 +86,7 @@ final class SaleRepository
     public function findReceipt(int $id): ?array
     {
         $sale=$this->findDetail($id);if($sale===null)return null;
-        $items=$this->database->connection()->prepare('SELECT id,product_id,product_name,product_code,quantity,unit_price,discount_amount,line_total FROM sale_items WHERE sale_id=:id ORDER BY id');$items->execute(['id'=>$id]);$sale['items']=$items->fetchAll();return $sale;
+        $items=$this->database->connection()->prepare('SELECT id,product_id,product_name,product_code,quantity_base as quantity, quantity_entered, unit_name_snapshot, unit_price,discount_amount,line_total FROM sale_items WHERE sale_id=:id ORDER BY id');$items->execute(['id'=>$id]);$sale['items']=$items->fetchAll();return $sale;
     }
 
     public function cancel(int $id,int $userId,string $reason): void

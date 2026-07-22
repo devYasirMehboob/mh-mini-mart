@@ -47,14 +47,21 @@ final class SaleValidator
             foreach ($items as $index => $item) {
                 if (!is_array($item)) { $errors["items.$index"] = ['Enter a valid sale item.']; continue; }
                 $id = filter_var($item['product_id'] ?? null, FILTER_VALIDATE_INT);
+                $unitId = filter_var($item['unit_id'] ?? null, FILTER_VALIDATE_INT);
                 $quantity = $this->decimal((string) ($item['quantity'] ?? ''), 3);
                 if ($id === false || $id < 1) { $errors["items.$index.product_id"] = ['Select a valid product.']; continue; }
+                if ($unitId !== false && $unitId !== null && $unitId < 1) { $errors["items.$index.unit_id"] = ['Select a valid unit.']; continue; }
                 if ($quantity === null || $quantity <= 0) { $errors["items.$index.quantity"] = ['Quantity must be greater than zero.']; continue; }
-                $merged[(int) $id] = ($merged[(int) $id] ?? 0) + $quantity;
+                
+                $key = $id . '_' . ($unitId ?? '0');
+                if (!isset($merged[$key])) {
+                    $merged[$key] = ['product_id' => (int)$id, 'unit_id' => $unitId ? (int)$unitId : null, 'quantity' => 0.0];
+                }
+                $merged[$key]['quantity'] += ($quantity / 1000.0);
             }
         }
         if ($errors !== []) throw new HttpException('Please correct the sale details.', 422, $errors);
-        return ['request_token'=>$token,'items'=>$merged,'discount_type'=>$discountType,'discount_value_cents'=>$discountValue,'payment_method'=>$paymentMethod,'amount_received_cents'=>$amountReceived,'customer_name'=>$customerName===''?null:$customerName,'customer_phone'=>$customerPhone===''?null:$customerPhone,'notes'=>$notes===''?null:$notes,'payment_reference'=>$paymentReference===''?null:$paymentReference,'held_sale_id'=>$heldSaleId===null?null:(int)$heldSaleId];
+        return ['request_token'=>$token,'items'=>array_values($merged),'discount_type'=>$discountType,'discount_value_cents'=>$discountValue,'payment_method'=>$paymentMethod,'amount_received_cents'=>$amountReceived,'customer_name'=>$customerName===''?null:$customerName,'customer_phone'=>$customerPhone===''?null:$customerPhone,'notes'=>$notes===''?null:$notes,'payment_reference'=>$paymentReference===''?null:$paymentReference,'held_sale_id'=>$heldSaleId===null?null:(int)$heldSaleId];
     }
 
     public function filters(array $input): array
