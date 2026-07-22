@@ -29,8 +29,7 @@ class UnitService
     public function createUnit(array $data): array
     {
         $this->validateData($data);
-        $id = $this->unitRepository->createUnit($data);
-        return $this->unitRepository->getUnitById($id);
+        return $this->unitRepository->createUnit($data);
     }
 
     public function updateUnit(int $id, array $data): array

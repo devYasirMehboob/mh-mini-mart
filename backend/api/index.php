@@ -239,6 +239,7 @@ try {
         $session
     );
     $supplierRepository = new SupplierRepository($database);
+    $supplierProductRepository = new \App\Repositories\SupplierProductRepository($database->connection());
     $purchaseRepository = new PurchaseRepository($database);
     $purchaseItemRepository = new PurchaseItemRepository($database);
     $purchasePaymentRepository = new PurchasePaymentRepository($database);
@@ -248,6 +249,9 @@ try {
         new SupplierService($supplierRepository, new SupplierValidator(), $activityRepository),
         $session
     );
+
+    $unitConversionService = new UnitConversionService($database);
+
     $purchaseService = new PurchaseService(
         $database,
         $purchaseRepository,
@@ -260,10 +264,10 @@ try {
         new PurchaseValidator(),
         $activityRepository,
         $configuration,
-        new BatchRepository($database)
+        new BatchRepository($database),
+        $unitConversionService,
+        $supplierProductRepository
     );
-    
-    $unitConversionService = new UnitConversionService($database);
 
     $unitRepository = new UnitRepository($database);
     $unitService = new UnitService($unitRepository);
@@ -272,7 +276,7 @@ try {
     $productUnitRepository = new ProductUnitRepository($database);
     $productUnitService = new ProductUnitService($productUnitRepository);
     $productUnitController = new ProductUnitController($productUnitService);
-    $purchaseController = new PurchaseController($request, $purchaseService, new PurchaseExportService(), $session);
+
     $purchaseReturnController = new PurchaseReturnController(
         $request,
         new PurchaseReturnService(
@@ -307,6 +311,16 @@ try {
         new ProductValidator(),
         new ProductImageService(__DIR__ . '/uploads', 'api/uploads'),
         $barcodeService
+    );
+
+    $purchaseController = new PurchaseController(
+        $request,
+        $purchaseService,
+        new PurchaseExportService(),
+        $session,
+        new ProductRepository($database),
+        $supplierProductRepository,
+        $productService
     );
 
     $productController = new ProductController(
@@ -649,9 +663,26 @@ $inventoryController = new InventoryController(
         if ($method === 'PUT' && preg_match('#^/suppliers/([1-9][0-9]*)$#', $path, $matches) === 1) $supplierController->update((int)$matches[1], $authenticatedUser);
         if ($method === 'DELETE' && preg_match('#^/suppliers/([1-9][0-9]*)$#', $path, $matches) === 1) $supplierController->destroy((int)$matches[1], $authenticatedUser);
         if ($method === 'PATCH' && preg_match('#^/suppliers/([1-9][0-9]*)/status$#', $path, $matches) === 1) $supplierController->status((int)$matches[1], $authenticatedUser);
+        if ($method === 'GET' && preg_match('#^/suppliers/([1-9][0-9]*)/purchase-suggestions$#', $path, $matches) === 1) {
+            $authorizationService->requirePermission($authenticatedUser, 'purchases.create');
+            $purchaseController->supplierSuggestions((int)$matches[1]);
+        }
         if ($method === 'GET' && preg_match('#^/suppliers/([1-9][0-9]*)/purchases$#', $path, $matches) === 1) $supplierController->purchases((int)$matches[1]);
         if ($method === 'GET' && preg_match('#^/suppliers/([1-9][0-9]*)/payments$#', $path, $matches) === 1) $supplierController->payments((int)$matches[1]);
         if ($method === 'GET' && preg_match('#^/suppliers/([1-9][0-9]*)/statement$#', $path, $matches) === 1) $supplierController->statement((int)$matches[1]);
+    }
+
+    if ($method === 'GET' && $path === '/purchase-products') {
+        $authorizationService->requirePermission($authenticatedUser, 'purchases.create');
+        $purchaseController->purchaseProducts();
+    }
+    if ($method === 'GET' && preg_match('#^/purchase-products/barcode/(.+)$#', $path, $matches) === 1) {
+        $authorizationService->requirePermission($authenticatedUser, 'purchases.create');
+        $purchaseController->barcodeLookup(rawurldecode($matches[1]));
+    }
+    if ($method === 'POST' && $path === '/purchases/quick-add-product') {
+        $authorizationService->requirePermission($authenticatedUser, 'purchases.quick_add_product');
+        $purchaseController->quickAddProduct($authenticatedUser);
     }
 
     if (str_starts_with($path, '/purchases')) {
@@ -985,6 +1016,9 @@ if (str_starts_with($path, '/inventory')) {
             '/reports/expenses' => 'expenses',
             '/reports/profit' => 'profit',
             '/reports/stock' => 'stock',
+            '/reports/packaging-stock' => 'packaging_stock',
+            '/reports/packaging_stock' => 'packaging_stock',
+            '/reports/stock/packaging' => 'packaging_stock',
             '/reports/stock/low' => 'low_stock',
             '/reports/stock/out' => 'out_of_stock',
             '/reports/wastage' => 'wastage',

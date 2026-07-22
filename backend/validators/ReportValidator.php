@@ -6,7 +6,7 @@ use App\Http\HttpException;
 
 final class ReportValidator
 {
-    public const TYPES = ['overview','sales','daily_sales','weekly_sales','monthly_sales','products','categories','cashiers','payment_methods','expenses','profit','stock','low_stock','out_of_stock','wastage','best_selling_products','purchase_summary','supplier_purchases','product_purchases','monthly_purchases','supplier_balances','purchase_payments','purchase_returns'];
+    public const TYPES = ['overview','sales','daily_sales','weekly_sales','monthly_sales','products','categories','cashiers','payment_methods','expenses','profit','stock','packaging_stock','low_stock','out_of_stock','wastage','best_selling_products','purchase_summary','supplier_purchases','product_purchases','monthly_purchases','supplier_balances','purchase_payments','purchase_returns'];
     private const PAYMENTS = ['cash','card','bank_transfer','mobile_wallet','other'];
     private const SALE_STATUSES = ['completed','cancelled','refunded'];
     private const EXPENSE_STATUSES = ['active','voided'];

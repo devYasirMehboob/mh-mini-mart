@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import apiClient from "../api/apiClient";
+import { getCategories } from "../api/categoriesApi";
 import { getProducts } from "../api/productsApi";
 import {
   completeDraftPurchase,
@@ -13,6 +15,9 @@ import Icon from "../components/Icon";
 import LoadingState from "../components/feedback/LoadingState";
 import PurchaseItemsEditor from "../components/purchases/PurchaseItemsEditor";
 import PurchaseTotalsPanel from "../components/purchases/PurchaseTotalsPanel";
+import SupplierProductSuggestions from "../components/purchases/SupplierProductSuggestions";
+import QuickAddProductDialog from "../components/purchases/QuickAddProductDialog";
+import QuickAddPackagingUnitDialog from "../components/purchases/QuickAddPackagingUnitDialog";
 import useAlert from "../hooks/useAlert";
 import normalizeApiError from "../utils/normalizeApiError";
 
@@ -42,23 +47,33 @@ function PurchaseFormPage() {
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
   const [units, setUnits] = useState([]);
-  const [productSearch, setProductSearch] = useState("");
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState({});
+
+  // Dialog states
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddInitialName, setQuickAddInitialName] = useState("");
+  const [configUnitOpen, setConfigUnitOpen] = useState(false);
+  const [selectedProductForConfig, setSelectedProductForConfig] = useState(null);
+  const [selectedItemForConfig, setSelectedItemForConfig] = useState(null);
 
   useEffect(() => {
     document.title = `${id ? "Edit" : "New"} Purchase | MH Mini Mart`;
     Promise.all([
       getSupplierOptions(),
-      getProducts({ status: "active", limit: 100 }),
+      getProducts({ status: "active", limit: 300 }),
       getUnits(),
+      getCategories(),
       id ? getPurchase(id) : null,
     ])
-      .then(([s, p, u, purchase]) => {
+      .then(([s, p, u, c, purchase]) => {
         setSuppliers(s);
-        setProducts(p.products);
+        setProducts(p.products || []);
         setUnits(u.units || u || []);
+        setCategories(c.categories || c || []);
+
         if (purchase) {
           if (purchase.purchase_status !== "draft") {
             throw new Error("Only draft purchases can be edited.");
@@ -82,10 +97,12 @@ function PurchaseFormPage() {
               product_id: Number(i.product_id),
               name: i.product_name,
               product_code: i.product_code,
-              unit_type: i.unit_type,
-              quantity: String(Number(i.quantity)),
+              unit_id: i.unit_id || i.default_purchase_unit_id || "",
+              quantity: String(Number(i.quantity_entered || i.quantity || 1)),
               unit_cost: i.unit_cost,
               line_discount: i.line_discount,
+              last_purchase_cost: i.last_purchase_cost || null,
+              purchase_units: i.purchase_units || [],
             }))
           );
         }
@@ -94,18 +111,7 @@ function PurchaseFormPage() {
         alert.error(normalizeApiError(e).message);
       })
       .finally(() => setLoading(false));
-  }, [id, alert]); // `alert` won't change but React exhaustive-deps likes it
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      getProducts({ status: "active", search: productSearch, limit: 100 })
-        .then((result) => setProducts(result.products))
-        .catch((e) => {
-           alert.error(normalizeApiError(e).message);
-        });
-    }, productSearch ? 300 : 0);
-    return () => clearTimeout(timer);
-  }, [productSearch, alert]);
+  }, [id, alert]);
 
   const totals = useMemo(() => {
     const subtotal = items.reduce(
@@ -133,50 +139,137 @@ function PurchaseFormPage() {
 
   const change = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  function add(pid) {
-    const p = products.find((x) => Number(x.id) === pid);
-    if (p)
-      setItems((list) => [
-        ...list,
-        {
-          product_id: pid,
-          name: p.name,
-          product_code: p.product_code,
-          unit_type: p.unit_type,
-          unit_id: p.default_purchase_unit_id || p.base_unit_id || "",
-          quantity: "1",
-          unit_cost: p.purchase_cost || "0",
-          line_discount: "0",
-        },
-      ]);
+  function addProductToItems(product) {
+    const pid = Number(product.id);
+    const existing = items.find((i) => Number(i.product_id) === pid);
+
+    if (existing) {
+      alert.info(`${product.name} is already in the purchase. Incremented pack quantity.`);
+      setItems((list) =>
+        list.map((i) =>
+          Number(i.product_id) === pid
+            ? { ...i, quantity: String(Number(i.quantity || 1) + 1) }
+            : i
+        )
+      );
+      return;
+    }
+
+    const defaultUnitId =
+      product.default_purchase_unit_id ||
+      product.purchase_units?.[0]?.unit_id ||
+      product.base_unit_id ||
+      "";
+
+    const defaultCost =
+      product.last_purchase_cost != null
+        ? String(product.last_purchase_cost)
+        : String(product.purchase_cost || "0");
+
+    setItems((list) => [
+      ...list,
+      {
+        product_id: pid,
+        name: product.name,
+        product_code: product.product_code,
+        unit_id: defaultUnitId,
+        quantity: "1",
+        unit_cost: defaultCost,
+        line_discount: "0",
+        last_purchase_cost: product.last_purchase_cost || null,
+        purchase_units: product.purchase_units || [],
+        product,
+      },
+    ]);
+
+    alert.success(`${product.name} added to purchase.`);
   }
 
-  function line(id, key, value) {
+  function handleLineChange(pid, key, value) {
     setItems((list) =>
-      list.map((i) => (i.product_id === id ? { ...i, [key]: value } : i))
+      list.map((i) => (Number(i.product_id) === Number(pid) ? { ...i, [key]: value } : i))
     );
+  }
+
+  function handleOpenQuickAdd(query = "") {
+    setQuickAddInitialName(query);
+    setQuickAddOpen(true);
+  }
+
+  function handleQuickAddCreated(createdProduct) {
+    setProducts((prev) => [createdProduct, ...prev]);
+    addProductToItems(createdProduct);
+  }
+
+  function handleOpenConfigureUnit(product, item) {
+    setSelectedProductForConfig(product);
+    setSelectedItemForConfig(item || null);
+    setConfigUnitOpen(true);
+  }
+
+  async function handleUnitConfigured(productId) {
+    try {
+      // Refresh product units for this specific product
+      const [unitsRes, productsRes] = await Promise.all([
+        apiClient.get(`/products/${productId}/units`),
+        getProducts({ status: "active", limit: 300 }),
+      ]);
+
+      const freshUnits = unitsRes.data?.data || unitsRes.data || [];
+      const freshProducts = productsRes.products || [];
+
+      setProducts(freshProducts);
+
+      // Update the cart item's purchase_units so the dropdown shows the new unit
+      setItems((list) =>
+        list.map((i) =>
+          Number(i.product_id) === Number(productId)
+            ? { ...i, purchase_units: freshUnits }
+            : i
+        )
+      );
+
+      alert.success("Packaging unit saved! Select it from the unit dropdown.");
+    } catch {
+      alert.error("Unit was saved but failed to refresh. Please reload.");
+    }
   }
 
   function payload() {
     return {
       ...form,
       supplier_id: Number(form.supplier_id),
-      items: items.map(({ product_id, unit_id, quantity, unit_cost, line_discount, batch_number, manufacturing_date, expiry_date }) => ({
-        product_id,
-        unit_id,
-        quantity,
-        unit_cost,
-        line_discount,
-        batch_number,
-        manufacturing_date,
-        expiry_date,
-      })),
+      items: items.map(
+        ({
+          product_id,
+          unit_id,
+          quantity,
+          unit_cost,
+          line_discount,
+          batch_number,
+          manufacturing_date,
+          expiry_date,
+        }) => ({
+          product_id: Number(product_id),
+          unit_id: unit_id ? Number(unit_id) : null,
+          quantity: quantity,
+          unit_cost: unit_cost,
+          line_discount: line_discount,
+          batch_number,
+          manufacturing_date,
+          expiry_date,
+        })
+      ),
     };
   }
 
   async function save(draft) {
-    if (!form.supplier_id || !items.length) {
-      alert.error("Select a supplier and add at least one product.");
+    if (!form.supplier_id) {
+      alert.error("Please select a supplier.");
+      return;
+    }
+    if (!items.length) {
+      alert.error("Add at least one product to the purchase.");
       return;
     }
     setBusy(true);
@@ -187,14 +280,14 @@ function PurchaseFormPage() {
           ? await updateDraftPurchase(id, payload())
           : await completeDraftPurchase(id, payload())
         : await createPurchase(payload(), draft);
-      
+
       alert.success(r.message || "Purchase saved successfully.");
       navigate(draft ? "/purchases" : `/purchases/${r.data.purchase.id}`, {
         replace: true,
       });
     } catch (e) {
       const normalized = normalizeApiError(e);
-      setErrors(normalized.fieldErrors);
+      setErrors(normalized.fieldErrors || {});
       alert.error(normalized.message);
     } finally {
       setBusy(false);
@@ -210,34 +303,34 @@ function PurchaseFormPage() {
           <button
             type="button"
             onClick={() => navigate("/purchases")}
-            className="mb-3 text-xs font-bold text-blue-600"
+            className="mb-3 text-xs font-bold text-blue-600 hover:underline"
           >
             ← Purchases
           </button>
-          <h2 className="text-[28px] font-extrabold">
-            {id ? "Edit draft purchase" : "New purchase"}
+          <h2 className="text-[28px] font-extrabold text-slate-900">
+            {id ? "Edit draft purchase" : "New Purchase Entry"}
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Supplier bill, trusted costs, payment and stock receipt.
+            Fast, supplier-aware stock receipt with packaging units and barcode scanning.
           </p>
         </div>
       </header>
 
       {Object.keys(errors).length > 0 && (
-        <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-700">
           Review the highlighted purchase values and try again.
-        </p>
+        </div>
       )}
 
       <section className="premium-surface grid gap-4 rounded-xl p-5 sm:grid-cols-3">
-        <label className="text-xs font-bold">
-          Supplier
+        <label className="text-xs font-bold text-slate-700">
+          Supplier *
           <select
             value={form.supplier_id}
             onChange={(e) => change("supplier_id", e.target.value)}
-            className="mt-1.5 min-h-11 w-full rounded-xl border px-3"
+            className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-blue-500"
           >
-            <option value="">Select supplier</option>
+            <option value="">Select supplier...</option>
             {suppliers.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
@@ -245,67 +338,104 @@ function PurchaseFormPage() {
             ))}
           </select>
           {errors.supplier_id?.[0] && (
-            <span className="text-red-600">{errors.supplier_id[0]}</span>
+            <span className="text-red-600 text-[11px] font-medium">{errors.supplier_id[0]}</span>
           )}
         </label>
-        <label className="text-xs font-bold">
-          Supplier invoice
+
+        <label className="text-xs font-bold text-slate-700">
+          Supplier Invoice #
           <input
             value={form.supplier_invoice_number}
             onChange={(e) => change("supplier_invoice_number", e.target.value)}
-            className="mt-1.5 min-h-11 w-full rounded-xl border px-3"
+            placeholder="e.g. INV-2026-99"
+            className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
           />
           {errors.supplier_invoice_number?.[0] && (
-            <span className="text-red-600">
+            <span className="text-red-600 text-[11px] font-medium">
               {errors.supplier_invoice_number[0]}
             </span>
           )}
         </label>
-        <label className="text-xs font-bold">
-          Purchase date
+
+        <label className="text-xs font-bold text-slate-700">
+          Purchase Date
           <input
             type="date"
             max={today()}
             value={form.purchase_date}
             onChange={(e) => change("purchase_date", e.target.value)}
-            className="mt-1.5 min-h-11 w-full rounded-xl border px-3"
+            className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
           />
         </label>
       </section>
+
+      {form.supplier_id && (
+        <SupplierProductSuggestions
+          supplierId={Number(form.supplier_id)}
+          onSelectProduct={addProductToItems}
+        />
+      )}
 
       <PurchaseItemsEditor
         products={products}
         units={units}
         items={items}
-        onSearch={setProductSearch}
-        onAdd={add}
-        onChange={line}
+        supplierId={form.supplier_id}
+        onAddProduct={addProductToItems}
+        onChange={handleLineChange}
         onRemove={(pid) =>
-          setItems((list) => list.filter((i) => i.product_id !== pid))
+          setItems((list) => list.filter((i) => Number(i.product_id) !== Number(pid)))
         }
+        onQuickAdd={handleOpenQuickAdd}
+        onConfigureUnit={handleOpenConfigureUnit}
       />
 
       <PurchaseTotalsPanel values={form} totals={totals} onChange={change} />
 
-      <footer className="sticky bottom-4 flex justify-end gap-2 rounded-xl border bg-white/95 p-4 shadow-lg">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => save(true)}
-          className="rounded-xl border px-4 py-3 text-xs font-bold"
-        >
-          {busy ? "Saving..." : "Save draft"}
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => save(false)}
-          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-xs font-bold text-white"
-        >
-          <Icon name="check" className="size-4" />
-          {busy ? "Posting..." : "Complete purchase"}
-        </button>
+      <footer className="sticky bottom-4 z-40 flex items-center justify-between rounded-xl border bg-white/95 p-4 shadow-lg backdrop-blur-md">
+        <div className="text-xs font-bold text-slate-500">
+          Total Items: <span className="text-slate-900 font-extrabold">{items.length}</span>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => save(true)}
+            className="rounded-xl border border-slate-200 px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
+          >
+            {busy ? "Saving..." : "Save Draft"}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => save(false)}
+            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-xs font-bold text-white hover:bg-blue-700 shadow-md"
+          >
+            <Icon name="check" className="size-4" />
+            {busy ? "Posting Purchase..." : "Complete Purchase"}
+          </button>
+        </div>
       </footer>
+
+      {/* Quick Add Dialogs */}
+      <QuickAddProductDialog
+        isOpen={quickAddOpen}
+        onClose={() => setQuickAddOpen(false)}
+        onCreated={handleQuickAddCreated}
+        supplierId={form.supplier_id}
+        initialName={quickAddInitialName}
+        categories={categories}
+        units={units}
+      />
+
+      <QuickAddPackagingUnitDialog
+        isOpen={configUnitOpen}
+        onClose={() => setConfigUnitOpen(false)}
+        product={selectedProductForConfig}
+        currentItem={selectedItemForConfig}
+        units={units}
+        onConfigured={handleUnitConfigured}
+      />
     </div>
   );
 }

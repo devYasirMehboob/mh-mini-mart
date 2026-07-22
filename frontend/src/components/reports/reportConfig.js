@@ -27,7 +27,7 @@ export const reportGroups = [
     ],
   },
   { label: "Financial reports", items: [["expenses", "Expenses"], ["profit", "Profit"]] },
-  { label: "Inventory reports", items: [["stock", "Current stock"], ["low_stock", "Low stock"], ["out_of_stock", "Out of stock"], ["wastage", "Wastage"]] },
+  { label: "Inventory reports", items: [["stock", "Current stock"], ["packaging_stock", "Packaging stock"], ["low_stock", "Low stock"], ["out_of_stock", "Out of stock"], ["wastage", "Wastage"]] },
 ];
 
 const grouped = [
@@ -50,6 +50,7 @@ export const configs = {
   expenses: { title: "Expense report", description: "Active and voided shop spending by category.", columns: [["expense_date", "Date"], ["title", "Expense"], ["category_name", "Category"], ["added_by_role", "Added by"], ["payment_method", "Payment"], ["amount", "Amount"], ["status", "Status"]] },
   profit: { title: "Profit report", description: "Revenue less historical cost of goods and active expenses.", columns: grouped },
   stock: { title: "Current stock", description: "Live inventory quantities and estimated valuation.", columns: [["product_name", "Product"], ["product_code", "Code"], ["category_name", "Category"], ["current_quantity", "Stock"], ["minimum_stock", "Minimum"], ["unit_type", "Unit"], ["stock_status", "Status"], ["estimated_stock_value", "Value"], ["last_movement", "Last movement"]] },
+  packaging_stock: { title: "Packaging & Bulk Stock Analytics", description: "Real-world breakdown of purchased Boriyan, Cartons & Boxes vs remaining sealed packs and open stock.", columns: [["product_name", "Product"], ["product_code", "Code"], ["category_name", "Category"], ["pack_unit_name", "Packaging Unit"], ["total_purchased_packs", "Purchased Packs"], ["stock_quantity_base", "Remaining Base Stock"], ["real_world_status", "Real-World Status"]] },
   low_stock: { title: "Low stock", description: "Tracked products at or below minimum stock.", columns: [["product_name", "Product"], ["product_code", "Code"], ["category_name", "Category"], ["current_quantity", "Stock"], ["minimum_stock", "Minimum"], ["shortage", "Shortage"], ["unit_type", "Unit"], ["last_movement", "Last movement"]] },
   out_of_stock: { title: "Out of stock", description: "Tracked products with no available stock.", columns: [["product_name", "Product"], ["product_code", "Code"], ["category_name", "Category"], ["minimum_stock", "Minimum"], ["unit_type", "Unit"], ["product_status", "Product status"], ["last_movement", "Last movement"]] },
   wastage: { title: "Wastage and loss", description: "Wastage, damaged and expired stock movements.", columns: [["transaction_date", "Date"], ["product_name", "Product"], ["product_code", "Code"], ["category_name", "Category"], ["transaction_type", "Type"], ["quantity", "Quantity"], ["unit_type", "Unit"], ["reason", "Reason"], ["user_role", "User"], ["cost_impact", "Estimated cost"]] },

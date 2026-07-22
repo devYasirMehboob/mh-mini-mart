@@ -357,6 +357,99 @@ final class ProductRepository
         return (int) $statement->fetchColumn() > 0;
     }
 
+    public function searchForPurchase(array $filters): array
+    {
+        $supplierId = isset($filters['supplier_id']) && $filters['supplier_id'] !== '' ? (int)$filters['supplier_id'] : null;
+        $search = trim($filters['search'] ?? '');
+        $exactBarcode = trim($filters['barcode'] ?? '');
+        $limit = isset($filters['limit']) ? (int)$filters['limit'] : 20;
+
+        $where = ["p.status = 'active'"];
+        $params = [];
+
+        if ($exactBarcode !== '') {
+            $where[] = '(p.barcode = :exact_barcode OR (sp.supplier_barcode = :exact_barcode_sp AND sp.supplier_id = :supplier_id_sp))';
+            $params['exact_barcode'] = $exactBarcode;
+            $params['exact_barcode_sp'] = $exactBarcode;
+            $params['supplier_id_sp'] = $supplierId ?? 0;
+        } elseif ($search !== '') {
+            $pattern = '%' . $search . '%';
+            $where[] = '(
+                p.name LIKE :search_name 
+                OR p.product_code LIKE :search_code 
+                OR p.barcode LIKE :search_barcode 
+                OR c.name LIKE :search_cat
+                OR sp.supplier_item_code LIKE :search_sp_code
+                OR sp.supplier_item_name LIKE :search_sp_name
+            )';
+            $params['search_name'] = $pattern;
+            $params['search_code'] = $pattern;
+            $params['search_barcode'] = $pattern;
+            $params['search_cat'] = $pattern;
+            $params['search_sp_code'] = $pattern;
+            $params['search_sp_name'] = $pattern;
+        }
+
+        if (isset($filters['category_id']) && $filters['category_id'] !== '') {
+            $where[] = 'p.category_id = :category_id';
+            $params['category_id'] = (int)$filters['category_id'];
+        }
+
+        $whereSql = ' WHERE ' . implode(' AND ', $where);
+
+        $sql = '
+            SELECT p.id, p.category_id, c.name AS category_name, p.name,
+                   p.product_code, p.barcode, p.purchase_cost, p.selling_price,
+                   p.stock_quantity_base AS quantity, p.minimum_stock,
+                   p.base_unit_id, p.default_purchase_unit_id, p.default_sale_unit_id,
+                   p.stock_mode, p.track_stock, p.track_batches, p.track_expiry, p.status,
+                   bu.name AS base_unit_name, bu.symbol AS base_unit_symbol,
+                   pu.name AS default_purchase_unit_name, pu.symbol AS default_purchase_unit_symbol,
+                   sp.supplier_item_code, sp.supplier_item_name, sp.last_purchase_cost, sp.last_purchase_unit_id, sp.last_purchase_date,
+                   lpu.name AS last_purchase_unit_name, lpu.symbol AS last_purchase_unit_symbol
+            FROM products p
+            INNER JOIN categories c ON c.id = p.category_id
+            LEFT JOIN units bu ON bu.id = p.base_unit_id
+            LEFT JOIN units pu ON pu.id = p.default_purchase_unit_id
+            LEFT JOIN supplier_products sp ON (sp.product_id = p.id AND sp.supplier_id = ' . ($supplierId ? (int)$supplierId : 0) . ')
+            LEFT JOIN units lpu ON lpu.id = sp.last_purchase_unit_id
+        ' . $whereSql . '
+            ORDER BY p.name ASC
+            LIMIT :limit_val
+        ';
+
+        $stmt = $this->database->connection()->prepare($sql);
+        foreach ($params as $k => $v) {
+            $stmt->bindValue(':' . $k, $v);
+        }
+        $stmt->bindValue(':limit_val', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (!empty($products)) {
+            $productIds = array_column($products, 'id');
+            $inClause = implode(',', array_map('intval', $productIds));
+            $unitsStmt = $this->database->connection()->query("
+                SELECT pu.product_id, pu.unit_id, u.name AS unit_name, u.symbol AS unit_symbol,
+                       pu.conversion_to_base, pu.is_base_unit, pu.is_purchase_unit
+                FROM product_units pu
+                JOIN units u ON pu.unit_id = u.id
+                WHERE pu.product_id IN ($inClause) AND pu.status = 'active'
+                ORDER BY pu.is_purchase_unit DESC, pu.conversion_to_base DESC
+            ");
+            $unitsByProduct = [];
+            while ($row = $unitsStmt->fetch(PDO::FETCH_ASSOC)) {
+                $unitsByProduct[$row['product_id']][] = $row;
+            }
+
+            foreach ($products as &$p) {
+                $p['purchase_units'] = $unitsByProduct[$p['id']] ?? [];
+            }
+        }
+
+        return $products;
+    }
+
     private function writeParameters(array $data): array
     {
         return [

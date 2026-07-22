@@ -200,4 +200,94 @@ final class ReportRepository
     private function scalar(string $sql,array $params): string{$statement=$this->database->connection()->prepare($sql);$statement->execute($params);return(string)$statement->fetchColumn();}
     private function bind(PDOStatement $statement,array $params): void{foreach($params as$key=>$value)$statement->bindValue(':'.$key,$value,is_int($value)?PDO::PARAM_INT:PDO::PARAM_STR);}
     private function decimal(float $value): string{return number_format($value,2,'.','');}
+
+    public function packagingStock(array $f): array
+    {
+        $where = [];
+        $params = [];
+
+        if (!empty($f['category_id'])) {
+            $where[] = 'p.category_id = :category_id';
+            $params['category_id'] = (int)$f['category_id'];
+        }
+        if (!empty($f['search'])) {
+            $where[] = '(p.name LIKE :search OR p.product_code LIKE :search_code OR p.barcode LIKE :search_barcode)';
+            $pattern = '%' . $f['search'] . '%';
+            $params['search'] = $pattern;
+            $params['search_code'] = $pattern;
+            $params['search_barcode'] = $pattern;
+        }
+
+        $whereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
+
+        $sql = "
+            SELECT 
+                p.id AS product_id,
+                p.name AS product_name,
+                p.product_code,
+                p.barcode,
+                p.stock_quantity_base,
+                c.name AS category_name,
+                bu.name AS base_unit_name,
+                bu.symbol AS base_unit_symbol,
+                pu_pack.unit_id AS pack_unit_id,
+                u_pack.name AS pack_unit_name,
+                u_pack.symbol AS pack_unit_symbol,
+                pu_pack.conversion_to_base AS pack_conversion,
+                COALESCE((
+                    SELECT SUM(pi.quantity_entered)
+                    FROM purchase_items pi
+                    JOIN purchases pur ON pur.id = pi.purchase_id
+                    WHERE pi.product_id = p.id AND pi.unit_id = pu_pack.unit_id AND pur.purchase_status = 'completed'
+                ), 0) AS total_purchased_packs,
+                COALESCE((
+                    SELECT SUM(pi.quantity_base)
+                    FROM purchase_items pi
+                    JOIN purchases pur ON pur.id = pi.purchase_id
+                    WHERE pi.product_id = p.id AND pur.purchase_status = 'completed'
+                ), 0) AS total_purchased_base,
+                COALESCE((
+                    SELECT SUM(si.quantity_base)
+                    FROM sale_items si
+                    JOIN sales s ON s.id = si.sale_id
+                    WHERE si.product_id = p.id AND s.status = 'completed'
+                ), 0) AS total_sold_base
+            FROM products p
+            JOIN categories c ON c.id = p.category_id
+            JOIN units bu ON bu.id = p.base_unit_id
+            JOIN product_units pu_pack ON (pu_pack.product_id = p.id AND pu_pack.conversion_to_base > 1 AND pu_pack.status = 'active')
+            JOIN units u_pack ON u_pack.id = pu_pack.unit_id
+            {$whereSql}
+            ORDER BY p.name ASC, pu_pack.conversion_to_base DESC
+        ";
+
+        $stmt = $this->database->connection()->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($rows as &$r) {
+            $baseStock = (float)$r['stock_quantity_base'];
+            $conv = (float)$r['pack_conversion'];
+            $fullPacks = $conv > 0 ? (int)floor($baseStock / $conv) : 0;
+            $remainingBase = $conv > 0 ? fmod($baseStock, $conv) : $baseStock;
+
+            $r['full_packs_remaining'] = $fullPacks;
+            $r['partial_base_remaining'] = round($remainingBase, 3);
+            
+            $packLabel = $r['pack_unit_name'];
+            $baseLabel = $r['base_unit_symbol'];
+
+            if ($fullPacks > 0 && $remainingBase > 0) {
+                $r['real_world_status'] = "{$fullPacks} Full {$packLabel}(s) + {$remainingBase} {$baseLabel} open";
+            } elseif ($fullPacks > 0) {
+                $r['real_world_status'] = "{$fullPacks} Full {$packLabel}(s) (Sealed)";
+            } elseif ($remainingBase > 0) {
+                $r['real_world_status'] = "{$remainingBase} {$baseLabel} open (Partial {$packLabel})";
+            } else {
+                $r['real_world_status'] = "Out of Stock";
+            }
+        }
+
+        return ['rows' => $rows, 'summary' => ['total_items' => count($rows)]];
+    }
 }

@@ -32,7 +32,8 @@ final class PurchaseService
         private readonly ActivityLogRepository $activity,
         private readonly SystemConfigurationService $config,
         private readonly ?BatchRepository $batches = null,
-        private readonly ?UnitConversionService $unitConversionService = null
+        private readonly ?UnitConversionService $unitConversionService = null,
+        private readonly ?\App\Repositories\SupplierProductRepository $supplierProducts = null
     ) {
     }
 

@@ -294,44 +294,50 @@ function ProductForm({
               </div>
             </div>
           )}
-          <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
-            <input className="size-4 accent-emerald-600" name="track_stock" type="checkbox" checked={values.track_stock} onChange={onChange} disabled={isSubmitting} />
-            <span>
-              <strong className="block text-sm font-semibold text-slate-700">Track product stock</strong>
-              <span className="mt-0.5 block text-xs text-slate-500">Disable this for services or products without inventory limits.</span>
-            </span>
-          </label>
-          <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
-            <input className="size-4 accent-emerald-600" name="track_batches" type="checkbox" checked={values.track_batches || false} onChange={onChange} disabled={isSubmitting || !values.track_stock} />
-            <span>
-              <strong className="block text-sm font-semibold text-slate-700">Track product batches</strong>
-              <span className="mt-0.5 block text-xs text-slate-500">Require batch numbers when receiving stock. Requires stock tracking.</span>
-            </span>
-          </label>
-          <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
-            <input className="size-4 accent-emerald-600" name="track_expiry" type="checkbox" checked={values.track_expiry || false} onChange={onChange} disabled={isSubmitting || !values.track_stock} />
-            <span>
-              <strong className="block text-sm font-semibold text-slate-700">Track expiry dates</strong>
-              <span className="mt-0.5 block text-xs text-slate-500">Require expiry dates when receiving stock. Requires stock tracking.</span>
-            </span>
-          </label>
-          <FieldError message={errors.track_stock} />
+          {values.stock_mode !== 'shared' && (
+            <>
+              <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+                <input className="size-4 accent-emerald-600" name="track_stock" type="checkbox" checked={values.track_stock} onChange={onChange} disabled={isSubmitting} />
+                <span>
+                  <strong className="block text-sm font-semibold text-slate-700">Track product stock</strong>
+                  <span className="mt-0.5 block text-xs text-slate-500">Disable this for services or products without inventory limits.</span>
+                </span>
+              </label>
+              <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+                <input className="size-4 accent-emerald-600" name="track_batches" type="checkbox" checked={values.track_batches || false} onChange={onChange} disabled={isSubmitting || !values.track_stock} />
+                <span>
+                  <strong className="block text-sm font-semibold text-slate-700">Track product batches</strong>
+                  <span className="mt-0.5 block text-xs text-slate-500">Require batch numbers when receiving stock. Requires stock tracking.</span>
+                </span>
+              </label>
+              <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+                <input className="size-4 accent-emerald-600" name="track_expiry" type="checkbox" checked={values.track_expiry || false} onChange={onChange} disabled={isSubmitting || !values.track_stock} />
+                <span>
+                  <strong className="block text-sm font-semibold text-slate-700">Track expiry dates</strong>
+                  <span className="mt-0.5 block text-xs text-slate-500">Require expiry dates when receiving stock. Requires stock tracking.</span>
+                </span>
+              </label>
+              <FieldError message={errors.track_stock} />
+            </>
+          )}
         </section>
 
-        <section className="border-t border-slate-100 pt-5">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Product image</h3>
-          <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
-            <div className="grid size-24 shrink-0 place-items-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-slate-50">
-              {imagePreview ? <img src={imagePreview} alt="Product preview" className="size-full object-cover" /> : <span className="text-xs text-slate-400">No image</span>}
+        {values.stock_mode !== 'shared' && (
+          <section className="border-t border-slate-100 pt-5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Product image</h3>
+            <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
+              <div className="grid size-24 shrink-0 place-items-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-slate-50">
+                {imagePreview ? <img src={imagePreview} alt="Product preview" className="size-full object-cover" /> : <span className="text-xs text-slate-400">No image</span>}
+              </div>
+              <div>
+                <input className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-700" type="file" accept="image/jpeg,image/png,image/webp" onChange={onImageChange} disabled={isSubmitting} />
+                <p className="mt-2 text-xs text-slate-400">JPG, PNG, or WebP. Maximum 2 MB.</p>
+                {imagePreview && <button className="mt-2 text-xs font-semibold text-red-600 hover:text-red-700" type="button" onClick={onRemoveImage} disabled={isSubmitting}>Remove image</button>}
+                <FieldError message={errors.image} />
+              </div>
             </div>
-            <div>
-              <input className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-700" type="file" accept="image/jpeg,image/png,image/webp" onChange={onImageChange} disabled={isSubmitting} />
-              <p className="mt-2 text-xs text-slate-400">JPG, PNG, or WebP. Maximum 2 MB.</p>
-              {imagePreview && <button className="mt-2 text-xs font-semibold text-red-600 hover:text-red-700" type="button" onClick={onRemoveImage} disabled={isSubmitting}>Remove image</button>}
-              <FieldError message={errors.image} />
-            </div>
-          </div>
-        </section>
+          </section>
+        )}
       </div>
 
       <footer className="flex justify-end gap-3 border-t border-slate-100 bg-slate-50/70 px-6 py-4">

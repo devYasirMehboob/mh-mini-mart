@@ -58,6 +58,7 @@ final class ReportService
             'expenses' => $this->reports->expenses($filters),
             'profit' => $this->profit($filters),
             'stock' => $this->reports->stock($filters),
+            'packaging_stock' => $this->reports->packagingStock($filters),
             'low_stock' => $this->reports->stock($filters, 'low'),
             'out_of_stock' => $this->reports->stock($filters, 'out'),
             'wastage' => $this->reports->wastage($filters),

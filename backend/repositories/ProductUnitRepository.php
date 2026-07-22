@@ -35,6 +35,12 @@ class ProductUnitRepository
             INSERT INTO product_units 
             (product_id, unit_id, conversion_to_base, is_base_unit, is_purchase_unit, is_sale_unit, selling_price, barcode, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE 
+            conversion_to_base = VALUES(conversion_to_base),
+            is_purchase_unit = VALUES(is_purchase_unit),
+            is_sale_unit = VALUES(is_sale_unit),
+            selling_price = VALUES(selling_price),
+            status = 'active'
         ");
         $stmt->execute([
             $productId,
