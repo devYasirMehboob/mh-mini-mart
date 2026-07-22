@@ -12,10 +12,17 @@ export default function NotificationBell() {
     unreadCount, 
     recentNotifications, 
     isLoading, 
+    fetchRecent,
     markAsRead, 
     markAllAsRead, 
     dismiss 
   } = useNotifications(60); // poll every 60 seconds
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchRecent(5);
+    }
+  }, [isOpen, fetchRecent]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -31,7 +38,9 @@ export default function NotificationBell() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+        className={`relative p-2 rounded-full transition-colors focus:outline-none ${
+          isOpen ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+        }`}
         aria-label="Notifications"
       >
         <Bell className="w-6 h-6" />
@@ -43,7 +52,7 @@ export default function NotificationBell() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-lg ring-1 ring-black ring-opacity-5 z-50 overflow-hidden flex flex-col max-h-[32rem]">
+        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-xl border border-gray-200 shadow-xl z-50 overflow-hidden flex flex-col max-h-[32rem]">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50">
             <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
             {unreadCount > 0 && (

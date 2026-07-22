@@ -24,6 +24,7 @@ final class NotificationController
 
     public function index(array $user): void
     {
+        $this->evaluationService->evaluateAll();
         $filters = $this->request->query();
         $filters['page'] = max(1, (int) ($filters['page'] ?? 1));
         $filters['limit'] = max(1, min(100, (int) ($filters['limit'] ?? 20)));
@@ -46,6 +47,7 @@ final class NotificationController
 
     public function recent(array $user): void
     {
+        $this->evaluationService->evaluateAll();
         $limit = max(1, min(20, (int) ($this->request->query()['limit'] ?? 5)));
         $recent = $this->notifications->getRecentForUser($user['id'], $limit);
         JsonResponse::success('Recent notifications retrieved.', ['notifications' => $recent]);
@@ -53,6 +55,7 @@ final class NotificationController
 
     public function unreadCount(array $user): void
     {
+        $this->evaluationService->evaluateAll();
         $summary = $this->notifications->getUnreadCount($user['id']);
         JsonResponse::success('Unread count retrieved.', ['summary' => $summary]);
     }
