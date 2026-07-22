@@ -11,6 +11,7 @@ final class SaleController
 {
     public function __construct(private readonly Request $request,private readonly SaleService $sales,private readonly SalesExportService $exporter,private readonly SessionManager $session) {}
     public function store(array$user): never {$this->session->verifyCsrfToken();$result=$this->sales->complete((int)$user['id'],$this->request->json(),in_array('sales.view_all',$user['permissions']??[],true));JsonResponse::success($result['already_completed']?'This sale was already completed.':'Sale completed successfully.',$result,$result['already_completed']?200:201);}
+    public function syncOffline(array$user): never {$this->session->verifyCsrfToken();$results=$this->sales->syncOfflineSales((int)$user['id'],$this->request->json(),in_array('sales.view_all',$user['permissions']??[],true));JsonResponse::success('Offline sales processed.',['results'=>$results]);}
     public function index(array$user): never {JsonResponse::success('Sales retrieved successfully.',$this->sales->listing($user,$this->request->query()));}
     public function summary(array$user): never {JsonResponse::success('Sales summary retrieved successfully.',$this->sales->summary($user,$this->request->query()));}
     public function show(array$user,int$id): never {JsonResponse::success('Sale details retrieved successfully.',$this->sales->detail($user,$id));}

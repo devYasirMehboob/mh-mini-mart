@@ -219,6 +219,7 @@ final class SaleService
             $saleId = $this->sales->create([
                 'invoice_number' => $invoice,
                 'request_token' => $data['request_token'],
+                'offline_sale_id' => $data['offline_sale_id'] ?? null,
                 'cashier_id' => $cashierId,
                 'customer_name' => $data['customer_name'],
                 'customer_phone' => $data['customer_phone'],
@@ -625,6 +626,66 @@ final class SaleService
     private function money(int $cents): string
     {
         return intdiv($cents, 100) . '.' . str_pad((string)($cents % 100), 2, '0', STR_PAD_LEFT);
+    }
+
+    public function syncOfflineSales(int $cashierId, array $payload, bool $isAdmin = false): array
+    {
+        $salesToSync = isset($payload['sales']) && is_array($payload['sales']) ? $payload['sales'] : (isset($payload['offline_sale_id']) ? [$payload] : []);
+        $results = [];
+
+        foreach ($salesToSync as $saleData) {
+            $offlineSaleId = $saleData['offline_sale_id'] ?? null;
+            if (!$offlineSaleId) {
+                $results[] = [
+                    'success' => false,
+                    'offline_sale_id' => null,
+                    'message' => 'Missing offline_sale_id'
+                ];
+                continue;
+            }
+
+            // 1. Idempotency check: look up by offline_sale_id
+            $existing = $this->sales->findByOfflineSaleId($offlineSaleId);
+            if ($existing !== null) {
+                $results[] = [
+                    'success' => true,
+                    'offline_sale_id' => $offlineSaleId,
+                    'already_synced' => true,
+                    'server_sale_id' => $existing['id'],
+                    'invoice_number' => $existing['invoice_number'],
+                    'sale' => $existing
+                ];
+                continue;
+            }
+
+            // 2. Process sale using complete()
+            try {
+                $saleData['request_token'] = $saleData['request_token'] ?? ('off_' . substr($offlineSaleId, 0, 30));
+                $saleData['offline_sale_id'] = $offlineSaleId;
+
+                $res = $this->complete($cashierId, $saleData, $isAdmin);
+                
+                $results[] = [
+                    'success' => true,
+                    'offline_sale_id' => $offlineSaleId,
+                    'already_synced' => $res['already_completed'] ?? false,
+                    'server_sale_id' => $res['sale']['id'] ?? null,
+                    'invoice_number' => $res['sale']['invoice_number'] ?? null,
+                    'sale' => $res['sale'] ?? null
+                ];
+            } catch (Throwable $e) {
+                $msg = $e->getMessage();
+                $isConflict = $e->getCode() === 409 || str_contains(strtolower($msg), 'stock') || str_contains(strtolower($msg), 'available');
+                $results[] = [
+                    'success' => false,
+                    'offline_sale_id' => $offlineSaleId,
+                    'status' => $isConflict ? 'conflict' : 'failed',
+                    'error' => $msg
+                ];
+            }
+        }
+
+        return $results;
     }
 
     private function quantity(int $milli): string

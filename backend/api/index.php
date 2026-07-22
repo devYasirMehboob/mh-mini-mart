@@ -925,7 +925,7 @@ if (str_starts_with($path, '/inventory')) {
     if (str_starts_with($path, '/sales')) {
         if ($method === 'GET') $authorizationService->requirePermission($authenticatedUser, 'sales.view');
         if ($method === 'GET' && str_ends_with($path, '/receipt')) $authorizationService->requirePermission($authenticatedUser, 'sales.reprint');
-        if ($method === 'POST' && $path === '/sales') $authorizationService->requirePermission($authenticatedUser, 'sales.complete');
+        if ($method === 'POST' && ($path === '/sales' || $path === '/sales/sync-offline')) $authorizationService->requirePermission($authenticatedUser, 'sales.complete');
         if (str_ends_with($path, '/cancel')) $authorizationService->requirePermission($authenticatedUser, 'sales.cancel');
         if (str_ends_with($path, '/refund')) $authorizationService->requirePermission($authenticatedUser, 'sales.refund');
         if ($method === 'GET' && $path === '/sales') $saleController->index($authenticatedUser);
@@ -935,6 +935,7 @@ if (str_starts_with($path, '/inventory')) {
             $saleController->export($authenticatedUser);
         }
         if ($method === 'POST' && $path === '/sales') $saleController->store($authenticatedUser);
+        if ($method === 'POST' && $path === '/sales/sync-offline') $saleController->syncOffline($authenticatedUser);
         if ($method === 'GET' && preg_match('#^/sales/([1-9][0-9]*)$#', $path, $matches) === 1) $saleController->show($authenticatedUser, (int) $matches[1]);
         if ($method === 'GET' && preg_match('#^/sales/([1-9][0-9]*)/receipt$#', $path, $matches) === 1) $saleController->receipt($authenticatedUser, (int) $matches[1]);
         if ($method === 'POST' && preg_match('#^/sales/([1-9][0-9]*)/cancel$#', $path, $matches) === 1) $saleController->cancel($authenticatedUser, (int) $matches[1]);

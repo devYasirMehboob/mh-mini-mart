@@ -61,7 +61,8 @@ final class SaleValidator
             }
         }
         if ($errors !== []) throw new HttpException('Please correct the sale details.', 422, $errors);
-        return ['request_token'=>$token,'items'=>array_values($merged),'discount_type'=>$discountType,'discount_value_cents'=>$discountValue,'payment_method'=>$paymentMethod,'amount_received_cents'=>$amountReceived,'customer_name'=>$customerName===''?null:$customerName,'customer_phone'=>$customerPhone===''?null:$customerPhone,'notes'=>$notes===''?null:$notes,'payment_reference'=>$paymentReference===''?null:$paymentReference,'held_sale_id'=>$heldSaleId===null?null:(int)$heldSaleId];
+        $offlineSaleId = isset($input['offline_sale_id']) && is_string($input['offline_sale_id']) ? trim($input['offline_sale_id']) : null;
+        return ['request_token'=>$token,'offline_sale_id'=>$offlineSaleId,'items'=>array_values($merged),'discount_type'=>$discountType,'discount_value_cents'=>$discountValue,'payment_method'=>$paymentMethod,'amount_received_cents'=>$amountReceived,'customer_name'=>$customerName===''?null:$customerName,'customer_phone'=>$customerPhone===''?null:$customerPhone,'notes'=>$notes===''?null:$notes,'payment_reference'=>$paymentReference===''?null:$paymentReference,'held_sale_id'=>$heldSaleId===null?null:(int)$heldSaleId];
     }
 
     public function filters(array $input): array

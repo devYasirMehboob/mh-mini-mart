@@ -5,6 +5,7 @@ import useAuth from "../hooks/useAuth";
 import usePermissions from "../hooks/usePermissions";
 import useSettings from "../hooks/useSettings";
 import NotificationBell from "../components/notifications/NotificationBell";
+import OfflineBanner from "../components/common/OfflineBanner";
 
 const groups = [
   {
@@ -128,6 +129,7 @@ function AppLayout() {
 
     </aside>
     <div className={`min-h-screen transition-all duration-300 ${isCollapsed ? "lg:ml-[88px]" : "lg:ml-[280px]"}`}>
+      <OfflineBanner />
       <header className="sticky top-0 z-20 flex h-[74px] items-center gap-4 border-b border-slate-200/80 bg-white/95 px-4 backdrop-blur sm:px-7 lg:px-8">
         <button className="grid size-10 place-items-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 lg:hidden" type="button" aria-label="Open navigation" onClick={() => setSidebarOpen(true)}>
           <Icon name="menu" />

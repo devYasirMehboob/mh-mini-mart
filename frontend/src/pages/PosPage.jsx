@@ -22,6 +22,8 @@ import useHeldSales from "../hooks/useHeldSales";
 import useScanQueue from "../hooks/useScanQueue";
 import useSettings from "../hooks/useSettings";
 import usePermissions from "../hooks/usePermissions";
+import useOffline from "../hooks/useOffline";
+import { getCachedProducts, deductCachedStock, saveOfflineSale, generateOfflineSaleId } from "../utils/idb";
 import { calculateSaleTotals } from "../utils/calculateSaleTotals";
 
 const DRAFT_KEY = "mh-mini-mart-pos-draft-v2";
@@ -69,6 +71,7 @@ function PosPage() {
   const alert = useAlert();
   const confirmDialog = useConfirmation();
   const { can } = usePermissions();
+  const { isOnline, isEmergencyMode, offlineUser, deviceConfig, refreshConfig, refreshProductCache } = useOffline();
   const notify = useCallback((message, type = "info") => alert[type === "error" ? "error" : "success"](message), [alert]);
 
   const onBarcodeNotFound = useCallback(async (scannedBarcode) => {
@@ -115,8 +118,11 @@ function PosPage() {
 
   useEffect(() => {
     document.title = "POS | MH Mini Mart";
-    getPosCategories().then(setCategories).catch((failure) => notify(normalizeApiError(failure).message, "error"));
-  }, [notify]);
+    if (isOnline) {
+      getPosCategories().then(setCategories).catch((failure) => notify(normalizeApiError(failure).message, "error"));
+      refreshProductCache().catch(() => undefined);
+    }
+  }, [notify, isOnline, refreshProductCache]);
 
   useEffect(() => {
     localStorage.setItem(DRAFT_KEY, JSON.stringify({ discountType, discountValue, payment, requestToken, activeHeldSaleId, activeHeldReference }));
@@ -131,12 +137,47 @@ function PosPage() {
     const controller = new AbortController();
     setLoading(true);
     setError("");
+
+    if (!isOnline || isEmergencyMode) {
+      getCachedProducts()
+        .then((cachedList) => {
+          let filtered = cachedList.filter(p => p.status === 'active' || !p.status);
+          if (category) {
+            filtered = filtered.filter(p =>
+              (p.category_id && String(p.category_id) === String(category)) ||
+              (p.category_name && p.category_name.toLowerCase() === String(category).toLowerCase())
+            );
+          }
+          if (query) {
+            const q = query.toLowerCase();
+            filtered = filtered.filter(p =>
+              p.name.toLowerCase().includes(q) ||
+              (p.code && p.code.toLowerCase().includes(q)) ||
+              (p.barcode && p.barcode.toLowerCase().includes(q))
+            );
+          }
+          const total = filtered.length;
+          const start = (page - 1) * PAGE_SIZE;
+          setProducts(filtered.slice(start, start + PAGE_SIZE));
+          setPagination({ page, total_pages: Math.ceil(total / PAGE_SIZE) || 1, total });
+        })
+        .catch(() => setError("Failed to load cached offline products."))
+        .finally(() => setLoading(false));
+      return () => controller.abort();
+    }
+
     getPosProducts({ search: query, category_id: category, page, limit: PAGE_SIZE }, controller.signal)
-      .then((data) => { setProducts(data.products); setPagination(data.pagination); })
+      .then((data) => {
+        setProducts(data.products);
+        setPagination(data.pagination);
+        if (Array.isArray(data.products) && data.products.length > 0) {
+          cacheProducts(data.products, false).catch(() => undefined);
+        }
+      })
       .catch((failure) => { if (failure.code !== "ERR_CANCELED") setError(normalizeApiError(failure).message); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [query, category, page, retryKey, stockRefresh]);
+  }, [query, category, page, retryKey, stockRefresh, isOnline, isEmergencyMode]);
 
   useEffect(() => {
     if (cartValidated.current) return;
@@ -288,6 +329,107 @@ function PosPage() {
     if (!cart.items.length) return notify("Add at least one product.", "error");
     const discount = Number(discountValue) || 0;
     if (discount < 0 || (discountType === "percentage" && discount > 100) || (discountType === "fixed" && discount > totals.subtotal)) return notify("Enter a valid discount.", "error");
+
+    // OFFLINE EMERGENCY SALE PROCESSING
+    if (!isOnline || isEmergencyMode) {
+      if (payment.payment_method !== "cash") {
+        return notify("Only Cash payments are allowed in Offline Emergency Mode.", "error");
+      }
+      const amountRec = Number(payment.amount_received || totals.grandTotal);
+      if (amountRec < totals.grandTotal) {
+        return notify("Cash received must cover the grand total.", "error");
+      }
+
+      setIsSubmitting(true);
+      try {
+        const offlineSaleId = generateOfflineSaleId();
+        const now = new Date().toISOString();
+        const changeRet = Math.max(0, amountRec - totals.grandTotal);
+
+        const offlineRecord = {
+          offline_sale_id: offlineSaleId,
+          request_token: requestToken,
+          device_id: deviceConfig?.device_id || 'local_terminal',
+          cashier_id: offlineUser?.id || 1,
+          cashier_name: offlineUser?.name || 'Offline Admin',
+          customer_name: payment.customer_name.trim() || null,
+          customer_phone: payment.customer_phone.trim() || null,
+          created_at: now,
+          items: cart.items.map((item) => ({
+            product_id: item.id,
+            product_name: item.name,
+            product_code: item.code || '',
+            unit_id: item.unit_id || null,
+            unit_name_snapshot: item.unit_name || item.unit_type || 'pcs',
+            unit_price: (item.selling_price || item.price || 0).toString(),
+            quantity: item.cartQuantity,
+            quantity_base: item.cartQuantity,
+            discount_amount: "0.00",
+            line_total: ((item.selling_price || item.price || 0) * item.cartQuantity).toFixed(2),
+          })),
+          subtotal: totals.subtotal.toFixed(2),
+          discount_type: discountType,
+          discount_value: discount.toFixed(2),
+          discount_amount: totals.discountAmount.toFixed(2),
+          tax_amount: totals.taxAmount.toFixed(2),
+          grand_total: totals.grandTotal.toFixed(2),
+          amount_received: amountRec.toFixed(2),
+          change_returned: changeRet.toFixed(2),
+          payment_method: 'cash',
+          payment_status: 'paid',
+          status: 'completed',
+          notes: payment.note.trim() ? `[Offline Sale] ${payment.note.trim()}` : '[Offline Sale]',
+          invoice_number: 'OFFLINE-' + Date.now().toString().slice(-6),
+          sync_status: 'pending',
+          sync_attempts: 0,
+          is_offline: true,
+        };
+
+        // Save offline sale into IndexedDB
+        await saveOfflineSale(offlineRecord);
+
+        // Deduct cached stock in IndexedDB
+        await deductCachedStock(cart.items);
+
+        // Prepare receipt data
+        const offlineReceipt = {
+          id: offlineSaleId,
+          invoice_number: offlineRecord.invoice_number,
+          created_at: now,
+          cashier_name: offlineRecord.cashier_name,
+          customer_name: offlineRecord.customer_name || 'Walk-in Customer',
+          customer_phone: offlineRecord.customer_phone || '',
+          subtotal: totals.subtotal.toFixed(2),
+          discount_type: discountType,
+          discount_amount: totals.discountAmount.toFixed(2),
+          tax_amount: totals.taxAmount.toFixed(2),
+          grand_total: totals.grandTotal.toFixed(2),
+          amount_received: amountRec.toFixed(2),
+          change_returned: changeRet.toFixed(2),
+          payment_method: 'cash',
+          payment_status: 'paid',
+          status: 'completed',
+          notes: offlineRecord.notes,
+          is_offline: true,
+          offline_watermark: 'Offline Sale — Pending Sync',
+          items: offlineRecord.items,
+        };
+
+        setSavedSale(offlineRecord);
+        setReceipt(offlineReceipt);
+        setReceiptOpen(true);
+        resetDraft();
+        refreshConfig();
+        setStockRefresh((value) => value + 1);
+        notify("Offline sale completed and saved locally! Will sync when online.", "success");
+      } catch (err) {
+        notify("Failed to process offline sale: " + err.message, "error");
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
     if (payment.payment_method === "cash" && Number(payment.amount_received || 0) < totals.grandTotal) return notify("Cash received must cover the grand total.", "error");
     setIsSubmitting(true);
     try {

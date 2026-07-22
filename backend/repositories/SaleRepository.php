@@ -20,6 +20,13 @@ final class SaleRepository
         return $id===false?null:$this->findReceipt((int)$id);
     }
 
+    public function findByOfflineSaleId(string $offlineSaleId): ?array
+    {
+        $statement=$this->database->connection()->prepare('SELECT id FROM sales WHERE offline_sale_id = :offline_sale_id LIMIT 1');
+        $statement->execute(['offline_sale_id'=>$offlineSaleId]);$id=$statement->fetchColumn();
+        return $id===false?null:$this->findReceipt((int)$id);
+    }
+
     public function nextInvoiceNumber(): string
     {
         $date=date('Y-m-d');$statement=$this->database->connection()->prepare('INSERT INTO invoice_sequences (sequence_date,last_number) VALUES (:date,1) ON DUPLICATE KEY UPDATE last_number = LAST_INSERT_ID(last_number + 1)');$statement->execute(['date'=>$date]);$number=$statement->rowCount()===1?1:(int)$this->database->connection()->lastInsertId();
@@ -28,7 +35,8 @@ final class SaleRepository
 
     public function create(array $data): int
     {
-        $statement=$this->database->connection()->prepare('INSERT INTO sales (invoice_number,request_token,cashier_id,customer_name,customer_phone,subtotal,discount_type,discount_value,discount_amount,tax_amount,grand_total,amount_received,change_returned,payment_method,payment_status,status,notes) VALUES (:invoice_number,:request_token,:cashier_id,:customer_name,:customer_phone,:subtotal,:discount_type,:discount_value,:discount_amount,:tax_amount,:grand_total,:amount_received,:change_returned,:payment_method,:payment_status,:status,:notes)');$statement->execute($data);
+        $data['offline_sale_id'] = $data['offline_sale_id'] ?? null;
+        $statement=$this->database->connection()->prepare('INSERT INTO sales (invoice_number,request_token,offline_sale_id,cashier_id,customer_name,customer_phone,subtotal,discount_type,discount_value,discount_amount,tax_amount,grand_total,amount_received,change_returned,payment_method,payment_status,status,notes) VALUES (:invoice_number,:request_token,:offline_sale_id,:cashier_id,:customer_name,:customer_phone,:subtotal,:discount_type,:discount_value,:discount_amount,:tax_amount,:grand_total,:amount_received,:change_returned,:payment_method,:payment_status,:status,:notes)');$statement->execute($data);
         return(int)$this->database->connection()->lastInsertId();
     }
 

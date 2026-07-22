@@ -21,6 +21,7 @@ import SalesSummaryCards from "../components/sales/SalesSummaryCards";
 import SalesTable from "../components/sales/SalesTable";
 import useAlert from "../hooks/useAlert";
 import normalizeApiError from "../utils/normalizeApiError";
+import { getOfflineSales } from "../utils/idb";
 
 const defaults = {
   search: "",
@@ -98,6 +99,50 @@ function SalesPage() {
     async function load() {
       setRefreshing(true);
       setPageError(null);
+
+      // OFFLINE SALES FALLBACK
+      if (!navigator.onLine) {
+        try {
+          const offlineList = await getOfflineSales(filters.status || 'all');
+          if (!active) return;
+
+          const formattedSales = offlineList.map((s) => ({
+            id: s.offline_sale_id,
+            invoice_number: s.invoice_number || 'OFFLINE',
+            created_at: s.created_at,
+            cashier_name: s.cashier_name || 'Offline Admin',
+            customer_name: s.customer_name || 'Walk-in Customer',
+            grand_total: s.grand_total,
+            payment_method: s.payment_method || 'cash',
+            payment_status: 'paid',
+            status: s.sync_status === 'synced' ? 'completed' : s.sync_status,
+            sync_status: s.sync_status,
+            sync_error: s.last_error,
+            is_offline: true,
+            rawRecord: s,
+          }));
+
+          setSales(formattedSales);
+          setPagination({ page: 1, total_pages: 1, total: formattedSales.length });
+          setSummary({
+            total_sales: formattedSales.length,
+            gross_sales: formattedSales.reduce((acc, s) => acc + (parseFloat(s.grand_total) || 0), 0),
+            total_discounts: 0,
+            net_sales: formattedSales.reduce((acc, s) => acc + (parseFloat(s.grand_total) || 0), 0),
+            refunded_amount: 0,
+            cancelled_sales: 0,
+          });
+        } catch (err) {
+          if (active) setPageError({ message: "Failed to load offline sales from local storage." });
+        } finally {
+          if (active) {
+            setLoading(false);
+            setRefreshing(false);
+          }
+        }
+        return;
+      }
+
       try {
         const query = paramsOf(filters);
         const [list, total] = await Promise.all([
@@ -151,6 +196,35 @@ function SalesPage() {
     setReceiptOpen(true);
     setReceipt(null);
     setReceiptLoading(true);
+
+    if (sale.is_offline || sale.rawRecord) {
+      const rec = sale.rawRecord || sale;
+      setReceipt({
+        id: rec.offline_sale_id || rec.id,
+        invoice_number: rec.invoice_number,
+        created_at: rec.created_at,
+        cashier_name: rec.cashier_name,
+        customer_name: rec.customer_name || 'Walk-in Customer',
+        customer_phone: rec.customer_phone || '',
+        subtotal: rec.subtotal,
+        discount_type: rec.discount_type,
+        discount_amount: rec.discount_amount,
+        tax_amount: rec.tax_amount,
+        grand_total: rec.grand_total,
+        amount_received: rec.amount_received,
+        change_returned: rec.change_returned,
+        payment_method: 'cash',
+        payment_status: 'paid',
+        status: 'completed',
+        notes: rec.notes,
+        is_offline: true,
+        offline_watermark: 'Offline Sale — Pending Sync',
+        items: rec.items,
+      });
+      setReceiptLoading(false);
+      return;
+    }
+
     try {
       setReceipt(await getSaleReceipt(sale.id));
     } catch (error) {

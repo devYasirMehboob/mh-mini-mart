@@ -248,4 +248,11 @@ export const settingsSections = [
       ["automatic_backup_time", "Preferred backup time", "time"],
     ],
   },
+  {
+    key: "offline",
+    label: "Offline Emergency",
+    description: "Configure local PIN access & IndexedDB sync",
+    private: true,
+    fields: [],
+  },
 ];
