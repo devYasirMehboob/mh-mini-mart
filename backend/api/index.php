@@ -527,6 +527,14 @@ $inventoryController = new InventoryController(
         );
     }
 
+    if ($method === 'GET' && $path === '/health') {
+        $database->ping();
+        JsonResponse::success(
+            'MH Mini Mart API is available.',
+            ['database' => 'connected']
+        );
+    }
+
     if ($method === 'GET' && $path === '/app-config') {
         JsonResponse::success('Configuration loaded', [
             'debug' => DebugConfig::isEnabled(),
@@ -550,14 +558,6 @@ $inventoryController = new InventoryController(
         if ($method === 'PUT' && $path === '/settings') $settingsController->update($authenticatedUser);
         if ($method === 'POST' && $path === '/settings/logo') $settingsController->uploadLogo($authenticatedUser);
         if ($method === 'DELETE' && $path === '/settings/logo') $settingsController->removeLogo($authenticatedUser);
-    }
-
-    if ($method === 'GET' && $path === '/health') {
-        $database->ping();
-        JsonResponse::success(
-            'MH Mini Mart API is available.',
-            ['database' => 'connected']
-        );
     }
 
     if ($method === 'GET' && $path === '/auth/me') {

@@ -174,7 +174,37 @@ function PosPage() {
           cacheProducts(data.products, false).catch(() => undefined);
         }
       })
-      .catch((failure) => { if (failure.code !== "ERR_CANCELED") setError(normalizeApiError(failure).message); })
+      .catch((failure) => {
+        if (failure.code === "ERR_CANCELED") return;
+        if (!failure.response) {
+          // Automatic seamless fallback to IndexedDB cache on network error
+          getCachedProducts().then((cachedList) => {
+            let filtered = cachedList.filter(p => p.status === 'active' || !p.status);
+            if (category) {
+              filtered = filtered.filter(p =>
+                (p.category_id && String(p.category_id) === String(category)) ||
+                (p.category_name && p.category_name.toLowerCase() === String(category).toLowerCase())
+              );
+            }
+            if (query) {
+              const q = query.toLowerCase();
+              filtered = filtered.filter(p =>
+                p.name.toLowerCase().includes(q) ||
+                (p.code && p.code.toLowerCase().includes(q)) ||
+                (p.barcode && p.barcode.toLowerCase().includes(q))
+              );
+            }
+            const total = filtered.length;
+            const start = (page - 1) * PAGE_SIZE;
+            setProducts(filtered.slice(start, start + PAGE_SIZE));
+            setPagination({ page, total_pages: Math.ceil(total / PAGE_SIZE) || 1, total });
+          }).catch(() => {
+            setError("Unable to connect to local server or load offline products.");
+          });
+        } else {
+          setError(normalizeApiError(failure).message);
+        }
+      })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [query, category, page, retryKey, stockRefresh, isOnline, isEmergencyMode]);
@@ -183,10 +213,11 @@ function PosPage() {
     if (cartValidated.current) return;
     cartValidated.current = true;
     if (initialCartIds.current.length === 0) return;
+    if (!isOnline || isEmergencyMode) return;
     getPosProducts({ ids: initialCartIds.current.join(","), limit: 100 })
       .then((data) => { const warnings = cart.revalidate(data.products); if (warnings.length) notify(warnings.join(" "), "error"); })
       .catch((failure) => notify(normalizeApiError(failure).message, "error"));
-  }, [cart, notify]);
+  }, [cart, notify, isOnline, isEmergencyMode]);
 
   function add(product, byAmount = false) {
     if (byAmount) {
@@ -489,7 +520,7 @@ function PosPage() {
             <div className="no-scrollbar mt-4 flex gap-2 overflow-x-auto"><Filter active={!category} label="All products" onClick={() => { setCategory(""); setPage(1); }} />{categories.map((item) => <Filter key={item.id} active={category === String(item.id)} label={item.name} onClick={() => { setCategory(String(item.id)); setPage(1); }} />)}</div>
           </div>
           {error && <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"><span>{error}</span><button type="button" className="font-bold underline" onClick={() => setRetryKey((value) => value + 1)}>Retry</button></div>}
-          {loading ? <Skeleton /> : products.length ? <><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">{products.map((product) => <ProductCard key={product.id} product={product} onAdd={add} />)}</div><Pagination pagination={pagination} onPage={setPage} /></> : <EmptyProducts />}
+          {loading ? <Skeleton /> : products.length ? <><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">{products.map((product) => <ProductCard key={product.id} product={product} onAdd={add} />)}</div><Pagination pagination={pagination} onPage={setPage} /></> : <EmptyProducts isOffline={!isOnline || isEmergencyMode} />}
         </section>
         <aside className="premium-surface overflow-hidden rounded-xl xl:sticky xl:top-[98px]">
           <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon name="pos" className="size-[18px]" /></span><div><h3 className="text-base font-extrabold text-slate-900">Current cart</h3><p className="mt-0.5 text-[10px] font-medium text-slate-400">{cart.items.length} product(s) selected</p></div></div>{cart.items.length > 0 && <button className="rounded-lg px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50" type="button" onClick={confirmClearCart}>Clear</button>}</div>
@@ -510,6 +541,22 @@ function PosPage() {
 function Filter({ active, label, onClick }) { return <button type="button" onClick={onClick} className={`shrink-0 rounded-lg border px-3 py-2 text-xs font-bold transition ${active ? "border-blue-600 bg-blue-600 text-white shadow-sm" : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"}`}>{label}</button>; }
 function Pagination({ pagination, onPage }) { if (pagination.total_pages <= 1) return null; return <div className="premium-surface flex items-center justify-between rounded-xl px-4 py-3 text-xs text-slate-500"><span>{pagination.total} products · Page {pagination.page} of {pagination.total_pages}</span><div className="flex gap-2"><button type="button" disabled={pagination.page <= 1} onClick={() => onPage(pagination.page - 1)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 font-bold transition hover:bg-slate-50 disabled:opacity-40">Previous</button><button type="button" disabled={pagination.page >= pagination.total_pages} onClick={() => onPage(pagination.page + 1)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 font-bold transition hover:bg-slate-50 disabled:opacity-40">Next</button></div></div>; }
 function Skeleton() { return <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">{Array.from({ length: 8 }, (_, index) => <div key={index} className="premium-surface h-48 animate-pulse overflow-hidden rounded-xl"><div className="h-28 bg-slate-100" /></div>)}</div>; }
-function EmptyProducts() { return <div className="premium-surface grid min-h-64 place-items-center rounded-xl text-center"><div><Icon name="search" className="mx-auto size-7 text-slate-300" /><p className="mt-3 text-sm font-bold text-slate-700">No products found</p><p className="mt-1 text-xs text-slate-400">Try another search or category.</p></div></div>; }
+function EmptyProducts({ isOffline }) {
+  return (
+    <div className="premium-surface grid min-h-64 place-items-center rounded-xl p-6 text-center">
+      <div>
+        <Icon name="search" className="mx-auto size-8 text-slate-300" />
+        <p className="mt-3 text-base font-extrabold text-slate-800">
+          {isOffline ? "No cached products found" : "No products found"}
+        </p>
+        <p className="mt-1 max-w-sm text-xs text-slate-400">
+          {isOffline
+            ? "Your offline product database is empty. Please connect online once or sync catalog in Settings > Offline Emergency."
+            : "Try another search or category filter."}
+        </p>
+      </div>
+    </div>
+  );
+}
 function EmptyCart() { return <div className="grid min-h-48 place-items-center px-6 text-center"><div><Icon name="pos" className="mx-auto size-7 text-slate-300" /><p className="mt-3 text-sm font-bold text-slate-600">Cart is empty</p><p className="mt-1 text-xs text-slate-400">Select a product to begin.</p></div></div>; }
 export default PosPage;

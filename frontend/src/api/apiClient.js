@@ -52,7 +52,8 @@ apiClient.interceptors.response.use(
     
     // Handle Network Errors (no response from server)
     if (!error.response) {
-      if (!error.config?.silent) {
+      const isOfflineSession = Boolean(typeof sessionStorage !== "undefined" && sessionStorage.getItem("mh_offline_session"));
+      if (!error.config?.silent && !isOfflineSession) {
         alertManager.error(`The local server is unavailable. Check Apache and MySQL.\nReference: ${requestId}`, { preventDuplicate: true, id: `network-error` });
       }
       return Promise.reject(error);
