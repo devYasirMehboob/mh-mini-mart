@@ -125,6 +125,9 @@ export async function cacheProducts(productsList, clearFirst = true) {
         image: product.image || null,
         formattedPrice: product.formattedPrice || null,
         stock_mode: product.stock_mode || 'direct',
+        stock_source_id: product.stock_source_id ? Number(product.stock_source_id) : null,
+        consumption_quantity: product.consumption_quantity != null ? parseFloat(product.consumption_quantity) : null,
+        consumption_quantity_base: product.consumption_quantity_base != null ? parseFloat(product.consumption_quantity_base) : null,
         last_updated: now,
       };
       store.put(safeProduct);
