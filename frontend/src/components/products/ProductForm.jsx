@@ -35,13 +35,27 @@ function ProductForm({
   const [isLoadingSources, setIsLoadingSources] = useState(false);
 
   useEffect(() => {
-    if (values.stock_mode === 'shared' && sourceProducts.length === 0) {
+    if (values.stock_mode === 'shared') {
       setIsLoadingSources(true);
-      getProducts({ limit: 1000 }).then(data => {
-        setSourceProducts(data.products.filter(p => p.stock_mode !== 'shared'));
-      }).catch(console.error).finally(() => setIsLoadingSources(false));
+      const params = { limit: 1000 };
+      if (values.category_id) {
+        params.category_id = values.category_id;
+      }
+      getProducts(params)
+        .then((data) => {
+          let sources = (data.products || []).filter((p) => p.stock_mode === 'source');
+          if (values.category_id) {
+            sources = sources.filter((p) => String(p.category_id) === String(values.category_id));
+          }
+          if (isEdit && values.id) {
+            sources = sources.filter((p) => Number(p.id) !== Number(values.id));
+          }
+          setSourceProducts(sources);
+        })
+        .catch(console.error)
+        .finally(() => setIsLoadingSources(false));
     }
-  }, [values.stock_mode]);
+  }, [values.stock_mode, values.category_id, isEdit, values.id]);
 
   return (
     <form onSubmit={onSubmit} noValidate>
@@ -145,14 +159,37 @@ function ProductForm({
                   <p className="text-sm text-blue-800 mb-4 font-semibold">Shared Stock Source Details</p>
                   <div className="grid gap-4 sm:grid-cols-3">
                     <div>
-                      <label className="mb-2 block text-xs font-semibold text-slate-700">Source Product</label>
-                      <select className={inputClasses(errors.stock_source_id)} name="stock_source_id" value={values.stock_source_id || ''} onChange={onChange} disabled={isSubmitting || isLoadingSources}>
-                        <option value="">Select source product...</option>
-                        {sourceProducts.map(p => (
-                          <option key={p.id} value={p.id}>{p.name} ({p.product_code})</option>
+                      <label className="mb-2 block text-xs font-semibold text-slate-700">
+                        Source Product (Master Inventory)
+                      </label>
+                      <select
+                        className={inputClasses(errors.stock_source_id)}
+                        name="stock_source_id"
+                        value={values.stock_source_id || ''}
+                        onChange={onChange}
+                        disabled={isSubmitting || isLoadingSources}
+                      >
+                        <option value="">
+                          {!values.category_id
+                            ? "Select a category first..."
+                            : "Select master source product..."}
+                        </option>
+                        {sourceProducts.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} ({p.product_code})
+                          </option>
                         ))}
                       </select>
-                      {isLoadingSources && <span className="text-xs text-blue-500 mt-1 block">Loading sources...</span>}
+                      {isLoadingSources && (
+                        <span className="text-xs text-blue-500 mt-1 block">
+                          Loading master products...
+                        </span>
+                      )}
+                      {!isLoadingSources && values.category_id && sourceProducts.length === 0 && (
+                        <span className="text-xs text-amber-600 mt-1 block">
+                          No Master Inventory products (Stock Mode = "Stock Source") found in this category.
+                        </span>
+                      )}
                       <FieldError message={errors.stock_source_id} />
                     </div>
                     <div>
