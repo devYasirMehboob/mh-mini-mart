@@ -9,6 +9,9 @@ import HeldSalesDialog from "../components/pos/HeldSalesDialog";
 import PaymentPanel from "../components/pos/PaymentPanel";
 import ProductCard from "../components/pos/ProductCard";
 import SaleSuccessModal from "../components/pos/SaleSuccessModal";
+import CustomerSelector from "../components/customers/CustomerSelector";
+import KhataSettlementPreview from "../components/customers/KhataSettlementPreview";
+import QuickAddCustomerDialog from "../components/customers/QuickAddCustomerDialog";
 
 import TotalsPanel from "../components/pos/TotalsPanel";
 import ReceiptPreview from "../components/sales/ReceiptPreview";
@@ -114,6 +117,8 @@ function PosPage() {
   const [receiptLoading, setReceiptLoading] = useState(false);
   const [stockRefresh, setStockRefresh] = useState(0);
   const [amountWeightProduct, setAmountWeightProduct] = useState(null);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
   const totals = useMemo(() => calculateSaleTotals(cart.items, discountType, discountValue, taxSettings.enabled ? taxSettings.percentage : 0, taxSettings.calculation_mode), [cart.items, discountType, discountValue, taxSettings.enabled, taxSettings.percentage, taxSettings.calculation_mode]);
 
   useEffect(() => {
@@ -251,6 +256,7 @@ function PosPage() {
     setRequestToken(newToken());
     setActiveHeldSaleId(null);
     setActiveHeldReference("");
+    setSelectedCustomer(null);
   }
 
   async function scan(event) {
@@ -277,11 +283,12 @@ function PosPage() {
       items: cart.items.map((item) => ({ product_id: item.id, unit_id: item.unit_id || null, quantity: item.cartQuantity })),
       discount_type: discount > 0 ? discountType : "none",
       discount_value: discount,
-      payment_method: payment.payment_method,
+      payment_method: payment.payment_method === "khata" ? "cash" : payment.payment_method,
       payment_reference: payment.payment_reference.trim(),
-      amount_received: payment.payment_method === "cash" ? Number(payment.amount_received || 0) : totals.grandTotal,
-      customer_name: payment.customer_name.trim(),
-      customer_phone: payment.customer_phone.trim(),
+      amount_received: payment.payment_method === "khata" ? 0 : (payment.payment_method === "cash" ? Number(payment.amount_received || 0) : totals.grandTotal),
+      customer_id: selectedCustomer ? selectedCustomer.id : null,
+      customer_name: selectedCustomer ? selectedCustomer.name : payment.customer_name.trim(),
+      customer_phone: selectedCustomer ? selectedCustomer.phone : payment.customer_phone.trim(),
       notes: payment.note.trim(),
     };
   }
@@ -363,11 +370,14 @@ function PosPage() {
 
     // OFFLINE EMERGENCY SALE PROCESSING
     if (!isOnline || isEmergencyMode) {
-      if (payment.payment_method !== "cash") {
-        return notify("Only Cash payments are allowed in Offline Emergency Mode.", "error");
+      if (payment.payment_method !== "cash" && payment.payment_method !== "khata") {
+        return notify("Only Cash or Khata payments are allowed in Offline Emergency Mode.", "error");
       }
-      const amountRec = Number(payment.amount_received || totals.grandTotal);
-      if (amountRec < totals.grandTotal) {
+      const amountRec = payment.payment_method === "khata" ? 0 : Number(payment.amount_received || totals.grandTotal);
+      if (payment.payment_method === "khata" && !selectedCustomer) {
+        return notify("Please select a customer for Khata.", "error");
+      }
+      if (payment.payment_method === "cash" && amountRec < totals.grandTotal) {
         return notify("Cash received must cover the grand total.", "error");
       }
 
@@ -461,7 +471,9 @@ function PosPage() {
       return;
     }
 
-    if (payment.payment_method === "cash" && Number(payment.amount_received || 0) < totals.grandTotal) return notify("Cash received must cover the grand total.", "error");
+    if (payment.payment_method === "khata" && !selectedCustomer) return notify("Please select a customer for Khata.", "error");
+    if (payment.payment_method === "cash" && !selectedCustomer && Number(payment.amount_received || 0) < totals.grandTotal) return notify("Cash received must cover the grand total.", "error");
+    if (payment.payment_method === "cash" && selectedCustomer && !selectedCustomer.khata_enabled && Number(payment.amount_received || 0) < totals.grandTotal) return notify("Cash received must cover the grand total.", "error");
     setIsSubmitting(true);
     try {
       const response = await completeSale(salePayload());
@@ -526,7 +538,39 @@ function PosPage() {
           <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon name="pos" className="size-[18px]" /></span><div><h3 className="text-base font-extrabold text-slate-900">Current cart</h3><p className="mt-0.5 text-[10px] font-medium text-slate-400">{cart.items.length} product(s) selected</p></div></div>{cart.items.length > 0 && <button className="rounded-lg px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50" type="button" onClick={confirmClearCart}>Clear</button>}</div>
           <div className="max-h-[34vh] space-y-2.5 overflow-y-auto p-4">{cart.items.length ? cart.items.map((item) => <CartItem key={item.id} item={item} onQuantity={quantity} onRemove={remove} />) : <EmptyCart />}</div>
           <TotalsPanel totals={totals} discountType={discountType} discountValue={discountValue} discountsEnabled={discountSettings.enabled !== false} taxLabel={taxSettings.enabled ? `${taxSettings.name || "Tax"} (${taxSettings.percentage || 0}%)` : "Tax disabled"} onDiscountType={(value) => { setDiscountType(value); setDiscountValue("0"); }} onDiscountValue={changeDiscount} />
-          <PaymentPanel values={payment} total={totals.grandTotal} onChange={(event) => setPayment((old) => ({ ...old, [event.target.name]: event.target.value }))} />
+          {/* Customer selector */}
+          <div className="border-t border-slate-100 px-5 py-3">
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Customer</span>
+              <button
+                type="button"
+                onClick={() => setShowQuickAdd(true)}
+                className="text-[10px] font-bold text-blue-600 hover:text-blue-800"
+              >
+                + Quick Add
+              </button>
+            </div>
+            <CustomerSelector
+              value={selectedCustomer}
+              onChange={setSelectedCustomer}
+              disabled={isSubmitting}
+              placeholder="Search customer (optional)..."
+            />
+            {selectedCustomer && Number(selectedCustomer.khata_enabled) === 1 && (
+              <KhataSettlementPreview
+                customer={selectedCustomer}
+                grandTotal={totals.grandTotal}
+                amountReceived={payment.amount_received}
+                paymentMethod={payment.payment_method}
+              />
+            )}
+          </div>
+          <PaymentPanel
+            values={payment}
+            total={totals.grandTotal}
+            khataCustomer={selectedCustomer && Number(selectedCustomer.khata_enabled) === 1 ? selectedCustomer : null}
+            onChange={(event) => setPayment((old) => ({ ...old, [event.target.name]: event.target.value }))}
+          />
           <div className="grid grid-cols-[0.8fr_1.2fr] gap-2 border-t border-slate-100 bg-slate-50/60 p-4"><button type="button" disabled={!cart.items.length || isSubmitting} onClick={holdSale} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"><Icon name="hold" className="size-4" />{activeHeldSaleId ? "Update hold" : "Hold sale"}</button><button type="button" disabled={!cart.items.length || isSubmitting} onClick={complete} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-extrabold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-100 disabled:shadow-none disabled:opacity-50"><Icon name={isSubmitting ? "clock" : "card"} className={`size-4 ${isSubmitting ? "animate-pulse" : ""}`} />{isSubmitting ? "Processing..." : "Complete sale"}</button></div>
         </aside>
       </div>
@@ -534,6 +578,11 @@ function PosPage() {
       <SaleSuccessModal sale={savedSale} isLoadingReceipt={receiptLoading} onPrint={openReceipt} onViewSale={() => navigate("/sales")} onNewSale={newSale} />
       <ReceiptPreview isOpen={receiptOpen} receipt={receipt} isLoading={false} autoPrint={receiptSettings.auto_print} onClose={() => setReceiptOpen(false)} />
       <AmountWeightModal product={amountWeightProduct} open={!!amountWeightProduct} onClose={() => setAmountWeightProduct(null)} onAdd={addWithQuantity} />
+      <QuickAddCustomerDialog
+        open={showQuickAdd}
+        onClose={() => setShowQuickAdd(false)}
+        onCreated={(customer) => { setSelectedCustomer(customer); setShowQuickAdd(false); }}
+      />
     </div>
   );
 }

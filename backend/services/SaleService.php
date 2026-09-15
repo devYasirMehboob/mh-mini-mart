@@ -6,6 +6,7 @@ namespace App\Services;
 use App\Config\Database;
 use App\Http\HttpException;
 use App\Repositories\ActivityLogRepository;
+use App\Repositories\CustomerRepository;
 use App\Repositories\HeldSaleRepository;
 use App\Repositories\PaymentRepository;
 use App\Repositories\ProductRepository;
@@ -19,6 +20,7 @@ use PDOException;
 use Throwable;
 use Exception;
 use App\Services\UnitConversionService;
+use App\Services\CustomerLedgerService;
 
 final class SaleService
 {
@@ -36,7 +38,9 @@ final class SaleService
         private readonly ActivityLogRepository $activity,
         private readonly ?BatchAllocationService $batchAllocation = null,
         private readonly ?BatchRepository $batchRepository = null,
-        private readonly ?UnitConversionService $unitConversionService = null
+        private readonly ?UnitConversionService $unitConversionService = null,
+        private readonly ?CustomerRepository $customerRepository = null,
+        private readonly ?CustomerLedgerService $customerLedger = null
     ) {
     }
 
@@ -208,33 +212,107 @@ final class SaleService
             }
             
             $grand = $subtotal - $discount + $tax;
-            if ($data['payment_method'] === 'cash' && $data['amount_received_cents'] < $grand) {
-                throw new HttpException('The received amount is less than the payable total.', 422, ['amount_received' => ['Enter at least ' . $this->money($grand) . '.']]);
+
+            // -----------------------------------------------------------------
+            // Customer / Khata settlement
+            // -----------------------------------------------------------------
+            $customerId         = $data['customer_id'] ?? null;
+            $prevBalanceCents   = 0;
+            $customerRow        = null;
+            $settlement         = null;
+            $creditAmountCents  = 0;
+
+            if ($customerId !== null && $this->customerRepository !== null) {
+                $customerRow = $this->customerRepository->findByIdForUpdate($customerId);
+                if ($customerRow === null) {
+                    throw new HttpException('The selected customer was not found.', 404);
+                }
+                if ((int) $customerRow['is_system_walk_in'] === 1) {
+                    throw new HttpException('The anonymous Walk-in Customer cannot hold a credit balance.', 422);
+                }
+                if ($customerRow['status'] !== 'active') {
+                    throw new HttpException('This customer account is inactive. Credit sale not allowed.', 422);
+                }
+
+                $prevBalanceCents = (int) round((float) $customerRow['current_balance'] * 100);
+
+                // For non-cash, full amount received from terminal
+                $receivedForSettlement = $data['payment_method'] === 'cash'
+                    ? $data['amount_received_cents']
+                    : $grand;
+
+                $settlement = $this->customerLedger->calculateSettlement(
+                    $prevBalanceCents,
+                    $grand,
+                    $receivedForSettlement
+                );
+                $creditAmountCents = $settlement['credit_amount_cents'];
+
+                // Credit limit check (0 = no limit)
+                $creditLimit = (int) round((float) $customerRow['credit_limit'] * 100);
+                if ($creditLimit > 0 && (int) $customerRow['khata_enabled'] === 1) {
+                    $newOutstanding = $settlement['new_outstanding_cents'];
+                    if ($newOutstanding > $creditLimit && !$isAdmin) {
+                        throw new HttpException(
+                            $customerRow['name'] . "'s credit limit of " . $this->money($creditLimit) . " would be exceeded.",
+                            422,
+                            ['credit_limit' => ['New outstanding would be ' . $this->money($newOutstanding) . '.']]
+                        );
+                    }
+                }
+
+                // For cash payment with credit: received can be < grand (only when khata customer)
+                if ($creditAmountCents > 0 && (int) $customerRow['khata_enabled'] !== 1) {
+                    throw new HttpException('Khata is not enabled for this customer.', 422);
+                }
+            } else {
+                // Anonymous walk-in: must pay in full
+                if ($data['payment_method'] === 'cash' && $data['amount_received_cents'] < $grand) {
+                    throw new HttpException('The received amount is less than the payable total.', 422, ['amount_received' => ['Enter at least ' . $this->money($grand) . '.']]);
+                }
             }
-            
-            $received = $data['payment_method'] === 'cash' ? $data['amount_received_cents'] : $grand;
-            $change = $data['payment_method'] === 'cash' ? $received - $grand : 0;
+
+            $received = $customerId !== null
+                ? ($data['payment_method'] === 'cash' ? $data['amount_received_cents'] : $grand)
+                : ($data['payment_method'] === 'cash' ? $data['amount_received_cents'] : $grand);
+
+            $change = $data['payment_method'] === 'cash'
+                ? max(0, $received - $grand)
+                : 0;
+
+            // Determine payment_status
+            $paymentStatus = 'paid';
+            if ($creditAmountCents > 0) {
+                $paymentStatus = $received === 0 ? 'pending' : 'partial';
+            }
+
             $invoice = $this->sales->nextInvoiceNumber();
-            
+
             $saleId = $this->sales->create([
-                'invoice_number' => $invoice,
-                'request_token' => $data['request_token'],
-                'offline_sale_id' => $data['offline_sale_id'] ?? null,
-                'cashier_id' => $cashierId,
-                'customer_name' => $data['customer_name'],
-                'customer_phone' => $data['customer_phone'],
-                'subtotal' => $this->money($subtotal),
-                'discount_type' => $data['discount_type'],
-                'discount_value' => $this->money($data['discount_value_cents']),
-                'discount_amount' => $this->money($discount),
-                'tax_amount' => $this->money($tax),
-                'grand_total' => $this->money($grand),
-                'amount_received' => $this->money($received),
-                'change_returned' => $this->money($change),
-                'payment_method' => $data['payment_method'],
-                'payment_status' => 'paid',
-                'status' => 'completed',
-                'notes' => $data['notes']
+                'invoice_number'           => $invoice,
+                'request_token'            => $data['request_token'],
+                'offline_sale_id'          => $data['offline_sale_id'] ?? null,
+                'cashier_id'               => $cashierId,
+                'customer_id'              => $customerId,
+                'customer_name'            => $data['customer_name'] ?? ($customerRow ? $customerRow['name'] : null),
+                'customer_phone'           => $data['customer_phone'] ?? ($customerRow ? $customerRow['phone'] : null),
+                'previous_customer_balance'=> $customerId ? $this->money($prevBalanceCents) : null,
+                'credit_amount'            => $this->money($creditAmountCents),
+                'customer_payment_applied' => $this->money($settlement ? $settlement['applied_to_current_sale_cents'] : $received),
+                'advance_used'             => '0.00',
+                'customer_balance_after'   => $settlement ? $this->money($settlement['new_outstanding_cents']) : null,
+                'subtotal'                 => $this->money($subtotal),
+                'discount_type'            => $data['discount_type'],
+                'discount_value'           => $this->money($data['discount_value_cents']),
+                'discount_amount'          => $this->money($discount),
+                'tax_amount'               => $this->money($tax),
+                'grand_total'              => $this->money($grand),
+                'amount_received'          => $this->money($received),
+                'change_returned'          => $this->money($change),
+                'payment_method'           => $data['payment_method'],
+                'payment_status'           => $paymentStatus,
+                'status'                   => 'completed',
+                'notes'                    => $data['notes']
             ]);
             
             $allocated = 0;
@@ -313,19 +391,40 @@ final class SaleService
             }
             
             $this->payments->create([
-                'sale_id' => $saleId,
+                'sale_id'        => $saleId,
                 'payment_method' => $data['payment_method'],
-                'amount' => $this->money($grand),
-                'status' => 'paid',
-                'reference' => $data['payment_reference']
+                'amount'         => $this->money($grand),
+                'status'         => 'paid',
+                'reference'      => $data['payment_reference']
             ]);
-            
+
+            // Customer ledger entries
+            if ($customerId !== null && $this->customerLedger !== null && $customerRow !== null && $settlement !== null) {
+                $this->customerLedger->postSaleLedgerEntries(
+                    $customerId,
+                    $saleId,
+                    $cashierId,
+                    $prevBalanceCents,
+                    $grand,
+                    $received,
+                    $settlement,
+                    $invoice,
+                    $data['request_token'] . '_spay'
+                );
+                // Update cached customer balance
+                $this->customerRepository->updateBalance(
+                    $customerId,
+                    $this->money($settlement['new_outstanding_cents']),
+                    $customerRow['advance_balance']
+                );
+            }
+
             if ($data['held_sale_id'] !== null) {
                 $this->held->complete($data['held_sale_id'], $saleId);
             }
-            
-            $this->activity->log($cashierId, 'sale.completed', 'Sale ' . $invoice . ' completed.');
-            
+
+            $this->activity->log($cashierId, 'sale.completed', 'Sale ' . $invoice . ' completed.' . ($customerId ? ' Customer: ' . ($customerRow['name'] ?? '') : ''));
+
             $pdo->commit();
             return ['sale' => $this->sales->findReceipt($saleId), 'already_completed' => false];
         } catch (Throwable $exception) {
@@ -397,8 +496,14 @@ final class SaleService
                 'created_at' => $sale['created_at'],
                 'cashier_name' => $sale['cashier_name'],
                 'cashier_role' => $sale['cashier_role'],
+                'customer_id' => $sale['customer_id'],
                 'customer_name' => $sale['customer_name'],
                 'customer_phone' => $sale['customer_phone'],
+                'previous_customer_balance' => $sale['previous_customer_balance'],
+                'credit_amount' => $sale['credit_amount'],
+                'customer_payment_applied' => $sale['customer_payment_applied'],
+                'advance_used' => $sale['advance_used'],
+                'customer_balance_after' => $sale['customer_balance_after'],
                 'subtotal' => $sale['subtotal'],
                 'discount_amount' => $sale['discount_amount'],
                 'tax_amount' => $sale['tax_amount'],
@@ -430,6 +535,10 @@ final class SaleService
             $this->restoreStock($items, (int)$user['id'], 'cancel', $saleId, $sale['invoice_number'], $data['reason']);
             $this->sales->cancel($saleId, (int)$user['id'], $data['reason']);
             $this->activity->log((int)$user['id'], 'sale.cancelled', 'Sale ' . $sale['invoice_number'] . ' cancelled.');
+            
+            if ($sale['customer_id'] !== null && $this->customerLedger !== null) {
+                $this->customerLedger->reverseSaleLedgerEntries((int)$sale['customer_id'], $saleId, (int)$user['id'], $sale['invoice_number']);
+            }
             
             $pdo->commit();
             return $this->detail($user, $saleId);

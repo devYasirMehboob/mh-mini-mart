@@ -90,14 +90,22 @@ function ReceiptPreview({
         ...(options.show_tax !== false && options.tax_show_on_receipt !== false
           ? [[options.tax_name || "ٹیکس", receipt.sale.tax_amount]]
           : []),
+        ["مجموعی رقم", receipt.sale.grand_total],
         ["وصول شدہ", receipt.sale.amount_received],
-        ...(options.show_change !== false
+        ...(options.show_change !== false && !receipt.sale.customer_id
           ? [["بقایا جات", receipt.sale.change_returned]]
           : []),
-        ["مجموعی رقم", receipt.sale.grand_total],
       ]
     : [];
 
+  const khataTotals = receipt && receipt.sale.customer_id
+    ? [
+        ["پچھلا بقایا", receipt.sale.previous_customer_balance || 0],
+        ["موجودہ بل", receipt.sale.grand_total],
+        ["وصول شدہ", receipt.sale.customer_payment_applied || receipt.sale.amount_received || 0],
+        ["نیا بقایا", receipt.sale.customer_balance_after || 0],
+      ]
+    : [];
   return (
     <Modal
       isOpen={isOpen}
@@ -214,9 +222,35 @@ function ReceiptPreview({
                 ))}
               </dl>
 
+              {khataTotals.length > 0 && (
+                <>
+                  <div className="my-2 border-t border-dashed border-black" />
+                  <p className="mb-1 text-center font-bold">کھاتہ تفصیل</p>
+                  <dl className="space-y-1">
+                    {khataTotals.map(([label, value]) => (
+                      <div
+                        key={label}
+                        className={`flex justify-between ${label === "نیا بقایا" ? "font-black" : ""}`}
+                      >
+                        <dt>{label}</dt>
+                        <dd className="barcode-text">{formatCurrency(value)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </>
+              )}
+
               {options.show_payment_method !== false && (
                 <p className="mt-2 capitalize">
-                  ادائیگی کا طریقہ: {receipt.sale.payment_method === "cash" ? "نقد" : receipt.sale.payment_method.replaceAll("_", " ")}
+                  ادائیگی کا طریقہ: {
+                    receipt.sale.payment_method === "cash" 
+                      ? (Number(receipt.sale.amount_received || 0) === 0 && Number(receipt.sale.grand_total || 0) > 0
+                          ? "ادھار"
+                          : Number(receipt.sale.amount_received || 0) > 0 && Number(receipt.sale.amount_received || 0) < Number(receipt.sale.grand_total || 0)
+                          ? "نقد / ادھار" 
+                          : "نقد")
+                      : receipt.sale.payment_method.replaceAll("_", " ")
+                  }
                 </p>
               )}
 

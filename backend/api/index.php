@@ -8,6 +8,7 @@ use App\Services\Logger;
 use App\Controllers\AuthController;
 use App\Controllers\BackupController;
 use App\Controllers\CategoryController;
+use App\Controllers\CustomerController;
 use App\Controllers\DashboardController;
 use App\Controllers\ProductController;
 use App\Controllers\InventoryController;
@@ -39,6 +40,9 @@ use App\Http\Request;
 use App\Middleware\AuthMiddleware;
 use App\Repositories\AccessCredentialRepository;
 use App\Repositories\CategoryRepository;
+use App\Repositories\CustomerRepository;
+use App\Repositories\CustomerLedgerRepository;
+use App\Repositories\CustomerPaymentRepository;
 use App\Repositories\DashboardRepository;
 use App\Repositories\ProductRepository;
 use App\Repositories\InventoryRepository;
@@ -71,6 +75,9 @@ use App\Repositories\ProductUnitRepository;
 use App\Repositories\StockContainerRepository;
 use App\Security\SessionManager;
 use App\Services\AuthService;
+use App\Services\CustomerService;
+use App\Services\CustomerLedgerService;
+use App\Services\CustomerPaymentService;
 use App\Services\DatabaseBackupService;
 use App\Services\CategoryService;
 use App\Services\DashboardService;
@@ -110,6 +117,7 @@ use App\Services\QuantityFormatterService;
 use App\Services\UnitService;
 use App\Services\ProductUnitService;
 use App\Services\StockContainerService;
+use App\Validators\CustomerValidator;
 use App\Validators\CategoryValidator;
 use App\Validators\ProductValidator;
 use App\Validators\InventoryValidator;
@@ -370,6 +378,21 @@ $inventoryController = new InventoryController(
 
     $saleRepository = new SaleRepository($database);
     $salesExportService = new SalesExportService($saleRepository);
+
+    $customerRepository = new CustomerRepository($database);
+    $customerLedgerRepository = new CustomerLedgerRepository($database);
+    $customerPaymentRepository = new CustomerPaymentRepository($database);
+    $customerLedgerService = new CustomerLedgerService($customerLedgerRepository, $customerRepository);
+    $customerPaymentService = new CustomerPaymentService(
+        $database,
+        $customerRepository,
+        $customerPaymentRepository,
+        $customerLedgerService,
+        new CustomerValidator(),
+        $activityRepository,
+        $saleRepository
+    );
+    $customerService = new CustomerService($customerRepository, new CustomerValidator(), $activityRepository);
     $saleController = new SaleController(
         $request,
         new SaleService(
@@ -386,10 +409,22 @@ $inventoryController = new InventoryController(
             $activityRepository,
             new \App\Services\BatchAllocationService(new BatchRepository($database)),
             new BatchRepository($database),
-            $unitConversionService
+            $unitConversionService,
+            $customerRepository,
+            $customerLedgerService
         ),
         $salesExportService,
         $session
+    );
+
+    $customerController = new CustomerController(
+        $request,
+        $customerService,
+        $customerLedgerService,
+        $customerPaymentService,
+        $authorizationService,
+        $session,
+        $saleRepository
     );
 
     $expenseRepository = new ExpenseRepository($database);
@@ -717,6 +752,27 @@ $inventoryController = new InventoryController(
     if ($method === 'GET' && $path === '/dashboard') {
         $authorizationService->requirePermission($authenticatedUser, 'dashboard.view');
         $dashboardController->index($authenticatedUser);
+    }
+
+    // ---- Customer / Khata Routes ----
+    if (str_starts_with($path, '/customers')) {
+        if ($method === 'GET'  && $path === '/customers')                                                       $customerController->index();
+        if ($method === 'GET'  && $path === '/customers/metrics')                                               $customerController->metrics();
+        if ($method === 'GET'  && $path === '/customers/search')                                                $customerController->search();
+        if ($method === 'POST' && $path === '/customers')                                                       $customerController->store();
+        if ($method === 'POST' && $path === '/customers/quick-add')                                             $customerController->quickAdd();
+        if ($method === 'GET'  && preg_match('#^/customers/([1-9][0-9]*)$#', $path, $m) === 1)                $customerController->show((int) $m[1]);
+        if ($method === 'GET'  && preg_match('#^/customers/([1-9][0-9]*)/summary$#', $path, $m) === 1)        $customerController->summary((int) $m[1]);
+        if ($method === 'GET'  && preg_match('#^/customers/([1-9][0-9]*)/credit-summary$#', $path, $m) === 1) $customerController->creditSummary((int) $m[1]);
+        if ($method === 'GET'  && preg_match('#^/customers/([1-9][0-9]*)/balance$#', $path, $m) === 1)        $customerController->balance((int) $m[1]);
+        if ($method === 'PUT'  && preg_match('#^/customers/([1-9][0-9]*)$#', $path, $m) === 1)                $customerController->update((int) $m[1]);
+        if ($method === 'PATCH'&& preg_match('#^/customers/([1-9][0-9]*)/status$#', $path, $m) === 1)         $customerController->status((int) $m[1]);
+        if ($method === 'GET'  && preg_match('#^/customers/([1-9][0-9]*)/ledger$#', $path, $m) === 1)         $customerController->ledger((int) $m[1]);
+        if ($method === 'GET'  && preg_match('#^/customers/([1-9][0-9]*)/statement$#', $path, $m) === 1)      $customerController->statement((int) $m[1]);
+        if ($method === 'GET'  && preg_match('#^/customers/([1-9][0-9]*)/purchases$#', $path, $m) === 1)      $customerController->purchases((int) $m[1]);
+        if ($method === 'GET'  && preg_match('#^/customers/([1-9][0-9]*)/payments$#', $path, $m) === 1)       $customerController->listPayments((int) $m[1]);
+        if ($method === 'POST' && preg_match('#^/customers/([1-9][0-9]*)/payments$#', $path, $m) === 1)       $customerController->receivePayment((int) $m[1]);
+        if ($method === 'GET'  && preg_match('#^/customers/([1-9][0-9]*)/reconcile$#', $path, $m) === 1)      $customerController->reconcile((int) $m[1]);
     }
 
     if (str_starts_with($path, '/categories')) {

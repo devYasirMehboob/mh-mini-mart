@@ -36,7 +36,15 @@ final class SaleRepository
     public function create(array $data): int
     {
         $data['offline_sale_id'] = $data['offline_sale_id'] ?? null;
-        $statement=$this->database->connection()->prepare('INSERT INTO sales (invoice_number,request_token,offline_sale_id,cashier_id,customer_name,customer_phone,subtotal,discount_type,discount_value,discount_amount,tax_amount,grand_total,amount_received,change_returned,payment_method,payment_status,status,notes) VALUES (:invoice_number,:request_token,:offline_sale_id,:cashier_id,:customer_name,:customer_phone,:subtotal,:discount_type,:discount_value,:discount_amount,:tax_amount,:grand_total,:amount_received,:change_returned,:payment_method,:payment_status,:status,:notes)');$statement->execute($data);
+        $data['customer_id'] = $data['customer_id'] ?? null;
+        $data['previous_customer_balance'] = $data['previous_customer_balance'] ?? null;
+        $data['credit_amount'] = $data['credit_amount'] ?? '0.00';
+        $data['customer_payment_applied'] = $data['customer_payment_applied'] ?? '0.00';
+        $data['advance_used'] = $data['advance_used'] ?? '0.00';
+        $data['customer_balance_after'] = $data['customer_balance_after'] ?? null;
+        $statement=$this->database->connection()->prepare(
+            'INSERT INTO sales (invoice_number,request_token,offline_sale_id,cashier_id,customer_id,customer_name,customer_phone,previous_customer_balance,credit_amount,customer_payment_applied,advance_used,customer_balance_after,subtotal,discount_type,discount_value,discount_amount,tax_amount,grand_total,amount_received,change_returned,payment_method,payment_status,status,notes) VALUES (:invoice_number,:request_token,:offline_sale_id,:cashier_id,:customer_id,:customer_name,:customer_phone,:previous_customer_balance,:credit_amount,:customer_payment_applied,:advance_used,:customer_balance_after,:subtotal,:discount_type,:discount_value,:discount_amount,:tax_amount,:grand_total,:amount_received,:change_returned,:payment_method,:payment_status,:status,:notes)'
+        );$statement->execute($data);
         return(int)$this->database->connection()->lastInsertId();
     }
 
@@ -48,6 +56,7 @@ final class SaleRepository
         $statement=$this->database->connection()->prepare(
             'SELECT s.id,s.invoice_number,s.cashier_id,ac.name AS cashier_name,ac.role AS cashier_role,
                     s.customer_name,s.customer_phone,s.subtotal,s.discount_amount,s.tax_amount,s.grand_total,
+                    s.amount_received,s.customer_payment_applied,
                     s.payment_method,s.payment_status,s.status,s.created_at,s.updated_at,
                     (SELECT COUNT(*) FROM sale_items si_count WHERE si_count.sale_id=s.id) AS item_count
              FROM sales s INNER JOIN access_credentials ac ON ac.id=s.cashier_id'.$where.
@@ -107,6 +116,32 @@ final class SaleRepository
         $statement=$this->database->connection()->prepare("UPDATE sales SET status='refunded',payment_status='refunded',refunded_at=CURRENT_TIMESTAMP WHERE id=:id");$statement->execute(['id'=>$id]);
     }
 
+    public function findUnpaidByCustomer(int $customerId): array
+    {
+        $stmt = $this->database->connection()->prepare(
+            "SELECT id, grand_total, amount_received, customer_payment_applied 
+             FROM sales 
+             WHERE customer_id = :cid AND status = 'completed' AND payment_status IN ('pending', 'partial')
+             ORDER BY created_at ASC, id ASC FOR UPDATE"
+        );
+        $stmt->execute(['cid' => $customerId]);
+        return $stmt->fetchAll();
+    }
+
+    public function updatePaymentApplied(int $saleId, string $customerPaymentApplied, string $paymentStatus): void
+    {
+        $stmt = $this->database->connection()->prepare(
+            "UPDATE sales 
+             SET customer_payment_applied = :applied, payment_status = :status 
+             WHERE id = :id"
+        );
+        $stmt->execute([
+            'id' => $saleId,
+            'applied' => $customerPaymentApplied,
+            'status' => $paymentStatus
+        ]);
+    }
+
     public function exportRows(array $filters,int $limit=5000): array
     {
         [$where,$parameters]=$this->conditions($filters);$statement=$this->database->connection()->prepare(
@@ -120,6 +155,38 @@ final class SaleRepository
     public function cashiers(): array
     {
         $statement=$this->database->connection()->prepare('SELECT id,name,role FROM access_credentials WHERE is_active=1 ORDER BY id');$statement->execute();return $statement->fetchAll();
+    }
+
+    public function paginateByCustomer(int $customerId, int $page, int $limit): array
+    {
+        $offset = ($page - 1) * $limit;
+        $count = $this->database->connection()->prepare('SELECT COUNT(*) FROM sales WHERE customer_id = :cid');
+        $count->execute(['cid' => $customerId]);
+        $total = (int) $count->fetchColumn();
+        $stmt = $this->database->connection()->prepare(
+            'SELECT s.id, s.invoice_number, s.cashier_id, ac.name AS cashier_name,
+                    s.grand_total, s.amount_received, s.credit_amount,
+                    s.payment_method, s.payment_status, s.status, s.created_at,
+                    (SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id) AS item_count
+             FROM sales s
+             JOIN access_credentials ac ON ac.id = s.cashier_id
+             WHERE s.customer_id = :cid
+             ORDER BY s.created_at DESC, s.id DESC
+             LIMIT :limit OFFSET :offset'
+        );
+        $stmt->bindValue(':cid', $customerId, PDO::PARAM_INT);
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        return [
+            'purchases'  => $stmt->fetchAll(),
+            'pagination' => [
+                'page'        => $page,
+                'limit'       => $limit,
+                'total'       => $total,
+                'total_pages' => $total === 0 ? 0 : (int) ceil($total / $limit),
+            ],
+        ];
     }
 
     private function conditions(array $filters): array

@@ -12,6 +12,8 @@ import LoginPage from "./pages/LoginPage";
 import PosPage from "./pages/PosPage";
 import ProductsPage from "./pages/ProductsPage";
 import ReportsPage from "./pages/ReportsPage";
+import CustomersPage from "./pages/CustomersPage";
+import CustomerDetailsPage from "./pages/CustomerDetailsPage";
 import PackagingStockPage from "./pages/PackagingStockPage";
 import SalesPage from "./pages/SalesPage";
 import BarcodeLabelsPage from "./pages/BarcodeLabelsPage";
@@ -55,6 +57,14 @@ function App() {
               <Route
                 path="categories"
                 element={permitted("categories.manage", <CategoriesPage />)}
+              />
+              <Route
+                path="customers"
+                element={permitted("pos.access", <CustomersPage />)}
+              />
+              <Route
+                path="customers/:id"
+                element={permitted("pos.access", <CustomerDetailsPage />)}
               />
               <Route
                 path="units"
