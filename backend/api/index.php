@@ -1029,6 +1029,28 @@ if (str_starts_with($path, '/inventory')) {
         if ($method === 'POST' && preg_match('#^/sales/([1-9][0-9]*)/refund$#', $path, $matches) === 1) $saleController->refund($authenticatedUser, (int) $matches[1]);
     }
 
+    if (str_starts_with($path, '/customers')) {
+        if ($method === 'GET' && $path === '/customers/metrics') $customerController->metrics();
+        if ($method === 'GET' && $path === '/customers/search') $customerController->search();
+        if ($method === 'GET' && $path === '/customers') $customerController->index();
+        if ($method === 'POST' && $path === '/customers') $customerController->store();
+        if ($method === 'POST' && $path === '/customers/quick-add') $customerController->quickAdd();
+        if (preg_match('#^/customers/([1-9][0-9]*)$#', $path, $matches) === 1) {
+            if ($method === 'GET') $customerController->show((int) $matches[1]);
+            if ($method === 'PUT') $customerController->update((int) $matches[1]);
+        }
+        if ($method === 'PATCH' && preg_match('#^/customers/([1-9][0-9]*)/status$#', $path, $matches) === 1) $customerController->status((int) $matches[1]);
+        if ($method === 'GET' && preg_match('#^/customers/([1-9][0-9]*)/summary$#', $path, $matches) === 1) $customerController->summary((int) $matches[1]);
+        if ($method === 'GET' && preg_match('#^/customers/([1-9][0-9]*)/credit-summary$#', $path, $matches) === 1) $customerController->creditSummary((int) $matches[1]);
+        if ($method === 'GET' && preg_match('#^/customers/([1-9][0-9]*)/balance$#', $path, $matches) === 1) $customerController->balance((int) $matches[1]);
+        if ($method === 'GET' && preg_match('#^/customers/([1-9][0-9]*)/ledger$#', $path, $matches) === 1) $customerController->ledger((int) $matches[1]);
+        if ($method === 'GET' && preg_match('#^/customers/([1-9][0-9]*)/statement$#', $path, $matches) === 1) $customerController->statement((int) $matches[1]);
+        if ($method === 'GET' && preg_match('#^/customers/([1-9][0-9]*)/purchases$#', $path, $matches) === 1) $customerController->purchases((int) $matches[1]);
+        if ($method === 'POST' && preg_match('#^/customers/([1-9][0-9]*)/payments$#', $path, $matches) === 1) $customerController->receivePayment((int) $matches[1]);
+        if ($method === 'GET' && preg_match('#^/customers/([1-9][0-9]*)/payments$#', $path, $matches) === 1) $customerController->listPayments((int) $matches[1]);
+        if ($method === 'GET' && preg_match('#^/customers/([1-9][0-9]*)/reconcile$#', $path, $matches) === 1) $customerController->reconcile((int) $matches[1]);
+    }
+
     if (str_starts_with($path, '/expenses')) {
         if ($method === 'GET') $authorizationService->requirePermission($authenticatedUser, 'expenses.view');
         else $authorizationService->requirePermission($authenticatedUser, 'expenses.manage');
