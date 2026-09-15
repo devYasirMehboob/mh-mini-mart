@@ -63,8 +63,9 @@ final class SaleValidator
         if ($errors !== []) throw new HttpException('Please correct the sale details.', 422, $errors);
         $offlineSaleId = isset($input['offline_sale_id']) && is_string($input['offline_sale_id']) ? trim($input['offline_sale_id']) : null;
         $customerId = isset($input['customer_id']) ? filter_var($input['customer_id'], FILTER_VALIDATE_INT) : null;
+        $khataPayment = $this->decimal((string) ($input['khata_payment'] ?? '0'), 2);
         if ($customerId === false) $customerId = null;
-        return ['request_token'=>$token,'offline_sale_id'=>$offlineSaleId,'items'=>array_values($merged),'discount_type'=>$discountType,'discount_value_cents'=>$discountValue,'payment_method'=>$paymentMethod,'amount_received_cents'=>$amountReceived,'customer_id'=>$customerId>0?(int)$customerId:null,'customer_name'=>$customerName===''?null:$customerName,'customer_phone'=>$customerPhone===''?null:$customerPhone,'notes'=>$notes===''?null:$notes,'payment_reference'=>$paymentReference===''?null:$paymentReference,'held_sale_id'=>$heldSaleId===null?null:(int)$heldSaleId];
+        return ['request_token'=>$token,'offline_sale_id'=>$offlineSaleId,'items'=>array_values($merged),'discount_type'=>$discountType,'discount_value_cents'=>$discountValue,'payment_method'=>$paymentMethod,'amount_received_cents'=>$amountReceived,'khata_payment_cents'=>$khataPayment,'customer_id'=>$customerId>0?(int)$customerId:null,'customer_name'=>$customerName===''?null:$customerName,'customer_phone'=>$customerPhone===''?null:$customerPhone,'notes'=>$notes===''?null:$notes,'payment_reference'=>$paymentReference===''?null:$paymentReference,'held_sale_id'=>$heldSaleId===null?null:(int)$heldSaleId];
     }
 
     public function filters(array $input): array

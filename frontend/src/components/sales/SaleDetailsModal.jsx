@@ -113,19 +113,34 @@ function SaleDetailsModal({ isOpen, sale, isLoading, onClose, onReceipt, onActio
               <section className={`rounded-xl border p-4 ${isCancelled ? 'border-red-200 bg-white/50' : 'border-slate-200'}`}>
                 <h3 className={`text-sm font-extrabold ${isCancelled ? 'text-red-900' : 'text-slate-800'}`}>Totals</h3>
                 <dl className="mt-3 space-y-2 text-xs">
-                  {[
-                    ["Subtotal", sale.subtotal],
-                    ["Discount", sale.discount_amount],
-                    ["Tax", sale.tax_amount],
-                    ["Grand total", sale.grand_total],
-                    ["Received", sale.amount_received],
-                    ["Change", sale.change_returned]
-                  ].map(([label, value]) => (
-                    <div key={label} className={`flex justify-between ${label === "Grand total" ? `border-t pt-2 font-extrabold ${isCancelled ? 'border-red-200 text-red-900 line-through opacity-70' : 'border-slate-100 text-slate-900'}` : (isCancelled ? 'text-red-600' : 'text-slate-500')}`}>
-                      <dt>{label}</dt>
-                      <dd>{formatCurrency(value)}</dd>
-                    </div>
-                  ))}
+                  {(() => {
+                    const received = Number(sale.amount_received || 0);
+                    const change = Number(sale.change_returned || 0);
+                    const grand = Number(sale.grand_total || 0);
+                    const khataDeposit = received - change - grand;
+                    
+                    const rows = [
+                      ["Subtotal", sale.subtotal],
+                      ["Discount", sale.discount_amount],
+                      ["Tax", sale.tax_amount],
+                      ["Grand total", sale.grand_total],
+                      ["Received", sale.amount_received],
+                      ["Change", sale.change_returned]
+                    ];
+                    
+                    if (khataDeposit > 0) {
+                      rows.push(["Khata deposit", khataDeposit]);
+                    } else if (khataDeposit < 0) {
+                      rows.push(["Added to khata", Math.abs(khataDeposit)]);
+                    }
+                    
+                    return rows.map(([label, value]) => (
+                      <div key={label} className={`flex justify-between ${label === "Grand total" ? `border-t pt-2 font-extrabold ${isCancelled ? 'border-red-200 text-red-900 line-through opacity-70' : 'border-slate-100 text-slate-900'}` : (isCancelled ? 'text-red-600' : (label === 'Khata deposit' ? 'font-bold text-blue-600' : (label === 'Added to khata' ? 'font-bold text-red-600' : 'text-slate-500')))}`}>
+                        <dt>{label}</dt>
+                        <dd>{formatCurrency(value)}</dd>
+                      </div>
+                    ));
+                  })()}
                 </dl>
               </section>
             </div>

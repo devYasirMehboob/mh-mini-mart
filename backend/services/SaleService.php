@@ -236,9 +236,9 @@ final class SaleService
 
                 $prevBalanceCents = (int) round((float) $customerRow['current_balance'] * 100);
 
-                // For non-cash, full amount received from terminal
+                $khataPaymentCents = (int) ($data['khata_payment_cents'] ?? 0);
                 $receivedForSettlement = $data['payment_method'] === 'cash'
-                    ? $data['amount_received_cents']
+                    ? min($data['amount_received_cents'], $grand + $khataPaymentCents)
                     : $grand;
 
                 $settlement = $this->customerLedger->calculateSettlement(
@@ -276,9 +276,15 @@ final class SaleService
                 ? ($data['payment_method'] === 'cash' ? $data['amount_received_cents'] : $grand)
                 : ($data['payment_method'] === 'cash' ? $data['amount_received_cents'] : $grand);
 
-            $change = $data['payment_method'] === 'cash'
-                ? max(0, $received - $grand)
-                : 0;
+            $change = 0;
+            if ($data['payment_method'] === 'cash') {
+                if ($settlement !== null) {
+                    $kept = $grand + (int) ($data['khata_payment_cents'] ?? 0);
+                    $change = max(0, $data['amount_received_cents'] - $kept);
+                } else {
+                    $change = max(0, $received - $grand);
+                }
+            }
 
             // Determine payment_status
             $paymentStatus = 'paid';

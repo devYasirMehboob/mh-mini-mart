@@ -100,7 +100,6 @@ function CustomersPage() {
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Udhar Recovered</p>
             <div className="mt-2 flex items-baseline gap-2">
               <p className="text-2xl font-black text-emerald-600">{metrics.recovery_percentage}%</p>
-              <p className="text-xs text-slate-400">({formatCurrency(metrics.total_recovered)})</p>
             </div>
           </div>
         </div>

@@ -17,7 +17,16 @@ function PaymentPanel({ values, total, khataCustomer, onChange }) {
     : baseMethods;
   const isKhataCash = khataCustomer && values.payment_method === "cash";
   const received = Number(values.amount_received || 0);
-  const change = values.payment_method === "cash" && received > total ? received - total : 0;
+  
+  let change = 0;
+  if (values.payment_method === "cash") {
+    let effectiveTotal = total;
+    if (khataCustomer && Number(khataCustomer.khata_enabled) === 1) {
+      const khataPayment = Number(values.khata_payment || 0);
+      effectiveTotal += khataPayment;
+    }
+    change = received > effectiveTotal ? received - effectiveTotal : 0;
+  }
 
   return (
     <section className="border-t border-slate-100 bg-white p-5">
@@ -32,9 +41,25 @@ function PaymentPanel({ values, total, khataCustomer, onChange }) {
         ))}
       </div>
       {values.payment_method === "khata" ? null : values.payment_method === "cash" ? (
-        <div className="mt-4 grid grid-cols-[1fr_auto] items-end gap-3">
-          <label><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Cash received</span><input name="amount_received" value={values.amount_received} onChange={onChange} type="number" min="0" step="0.01" className="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-base font-extrabold text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50" placeholder="0.00" /></label>
-          <div className={`min-w-28 rounded-xl border px-3 py-2.5 text-right ${change > 0 ? "border-emerald-100 bg-emerald-50" : "border-slate-100 bg-slate-50"}`}><small className={`block text-[9px] font-extrabold uppercase tracking-wider ${change > 0 ? "text-emerald-600" : "text-slate-400"}`}>Change</small><strong className={`mt-1 block text-sm ${change > 0 ? "text-emerald-800" : "text-slate-600"}`}>{formatCurrency(change)}</strong></div>
+        <div className="mt-4 grid gap-3">
+          <div className={`grid items-end gap-3 ${khataCustomer && Number(khataCustomer.khata_enabled) === 1 ? 'grid-cols-3' : 'grid-cols-[1fr_auto]'}`}>
+            <label>
+              <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Cash received</span>
+              <input name="amount_received" value={values.amount_received} onChange={onChange} type="number" min="0" step="0.01" className="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-base font-extrabold text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50" placeholder="0.00" />
+            </label>
+            
+            {khataCustomer && Number(khataCustomer.khata_enabled) === 1 && (
+              <label>
+                <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Khata Deposit</span>
+                <input name="khata_payment" value={values.khata_payment || ""} onChange={onChange} type="number" min="0" step="0.01" className="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-base font-extrabold text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50" placeholder="Max: " />
+              </label>
+            )}
+
+            <div className={`min-w-28 rounded-xl border px-3 py-2.5 text-right ${change > 0 ? "border-emerald-100 bg-emerald-50" : "border-slate-100 bg-slate-50"}`}>
+              <small className={`block text-[9px] font-extrabold uppercase tracking-wider ${change > 0 ? "text-emerald-600" : "text-slate-400"}`}>Change</small>
+              <strong className={`mt-1 block text-sm ${change > 0 ? "text-emerald-800" : "text-slate-600"}`}>{formatCurrency(change)}</strong>
+            </div>
+          </div>
         </div>
       ) : (
         <label className="mt-4 block"><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Payment reference (optional)</span><input name="payment_reference" maxLength="150" value={values.payment_reference} onChange={onChange} className={inputClass} placeholder="Transaction or reference number" /></label>

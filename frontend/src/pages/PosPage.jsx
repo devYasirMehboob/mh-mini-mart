@@ -286,6 +286,7 @@ function PosPage() {
       payment_method: payment.payment_method === "khata" ? "cash" : payment.payment_method,
       payment_reference: payment.payment_reference.trim(),
       amount_received: payment.payment_method === "khata" ? 0 : (payment.payment_method === "cash" ? Number(payment.amount_received || 0) : totals.grandTotal),
+      khata_payment: payment.payment_method === "khata" ? 0 : (payment.payment_method === "cash" ? Number(payment.khata_payment || 0) : 0),
       customer_id: selectedCustomer ? selectedCustomer.id : null,
       customer_name: selectedCustomer ? selectedCustomer.name : payment.customer_name.trim(),
       customer_phone: selectedCustomer ? selectedCustomer.phone : payment.customer_phone.trim(),

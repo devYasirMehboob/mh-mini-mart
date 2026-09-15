@@ -102,7 +102,7 @@ function ReceiptPreview({
     ? [
         ["پچھلا بقایا", receipt.sale.previous_customer_balance || 0],
         ["موجودہ بل", receipt.sale.grand_total],
-        ["وصول شدہ", receipt.sale.customer_payment_applied || receipt.sale.amount_received || 0],
+        ["وصول شدہ", Math.max(0, Number(receipt.sale.amount_received || 0) - Number(receipt.sale.change_returned || 0)).toFixed(2)],
         ["نیا بقایا", receipt.sale.customer_balance_after || 0],
       ]
     : [];

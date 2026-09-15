@@ -90,10 +90,11 @@ final class CustomerLedgerService
             ]);
         }
 
-        // 2. Sale payment entry (if any cash was received)
-        if ($receivedCents > 0) {
-            $balance -= $receivedCents;
-            $balance  = max(0, $balance); // cannot go below zero here (excess = advance handled separately)
+        // 2. Sale payment entry (if they paid more than the current bill, applying to old khata)
+        $appliedToKhata = $settlement['applied_to_old_khata_cents'];
+        if ($appliedToKhata > 0) {
+            $balance -= $appliedToKhata;
+            $balance  = max(0, $balance); // cannot go below zero here
             $this->ledger->create([
                 'customer_id'    => $customerId,
                 'entry_number'   => $this->ledger->nextEntryNumber(),
@@ -102,7 +103,7 @@ final class CustomerLedgerService
                 'reference_id'   => $saleId,
                 'sale_id'        => $saleId,
                 'debit_amount'   => '0.00',
-                'credit_amount'  => $this->money($receivedCents),
+                'credit_amount'  => $this->money($appliedToKhata),
                 'balance_after'  => $this->money($settlement['new_outstanding_cents']),
                 'description'    => 'Payment at sale: invoice ' . $invoiceNumber,
                 'entry_date'     => date('Y-m-d'),

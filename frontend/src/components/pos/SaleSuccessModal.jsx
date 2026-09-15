@@ -1,4 +1,4 @@
-﻿import Modal from "../Modal";
+import Modal from "../Modal";
 import Icon from "../Icon";
 import { formatCurrency } from "../../utils/calculateSaleTotals";
 
@@ -17,8 +17,18 @@ function SaleSuccessModal({ sale, onNewSale, onPrint, onViewSale, isLoadingRecei
           <dl className="mt-5 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4 text-xs">
             <div><dt className="text-slate-400">Received</dt><dd className="mt-1 font-bold text-slate-800">{formatCurrency(sale.amount_received)}</dd></div>
             <div><dt className="text-slate-400">Change</dt><dd className="mt-1 font-bold text-emerald-700">{formatCurrency(sale.change_returned)}</dd></div>
-            <div><dt className="text-slate-400">Payment</dt><dd className="mt-1 font-bold capitalize text-slate-800">{sale.payment_method.replaceAll("_", " ")}</dd></div>
-            <div><dt className="text-slate-400">Items</dt><dd className="mt-1 font-bold text-slate-800">{sale.items?.length || 0}</dd></div>
+            {Number(sale.amount_received || 0) - Number(sale.change_returned || 0) !== Number(sale.grand_total || 0) && (
+              <>
+                <div className="border-t border-slate-200 pt-3"><dt className="text-slate-400">Sale Amount</dt><dd className="mt-1 font-bold text-slate-800">{formatCurrency(sale.grand_total)}</dd></div>
+                {Number(sale.amount_received || 0) - Number(sale.change_returned || 0) > Number(sale.grand_total || 0) ? (
+                  <div className="border-t border-slate-200 pt-3"><dt className="text-slate-400">Khata Deposit</dt><dd className="mt-1 font-bold text-blue-600">{formatCurrency(Number(sale.amount_received) - Number(sale.change_returned) - Number(sale.grand_total))}</dd></div>
+                ) : (
+                  <div className="border-t border-slate-200 pt-3"><dt className="text-slate-400">Added to Khata</dt><dd className="mt-1 font-bold text-red-600">{formatCurrency(Number(sale.grand_total) - (Number(sale.amount_received) - Number(sale.change_returned)))}</dd></div>
+                )}
+              </>
+            )}
+            <div className={Number(sale.amount_received || 0) - Number(sale.change_returned || 0) !== Number(sale.grand_total || 0) ? "border-t border-slate-200 pt-3" : ""}><dt className="text-slate-400">Payment</dt><dd className="mt-1 font-bold capitalize text-slate-800">{sale.payment_method.replaceAll("_", " ")}</dd></div>
+            <div className={Number(sale.amount_received || 0) - Number(sale.change_returned || 0) !== Number(sale.grand_total || 0) ? "border-t border-slate-200 pt-3" : ""}><dt className="text-slate-400">Items</dt><dd className="mt-1 font-bold text-slate-800">{sale.items?.length || 0}</dd></div>
           </dl>
           <div className="mt-5 grid gap-2 sm:grid-cols-3">
             <button type="button" disabled={isLoadingReceipt} onClick={onPrint} className="min-h-11 rounded-xl bg-blue-600 px-4 text-xs font-bold text-white disabled:opacity-60">{isLoadingReceipt ? "Loading..." : "Print receipt"}</button>
