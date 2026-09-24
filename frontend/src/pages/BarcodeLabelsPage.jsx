@@ -8,7 +8,7 @@ import PageErrorState from "../components/feedback/PageErrorState";
 import normalizeApiError from "../utils/normalizeApiError";
 import { printHtmlViaQZ } from "../utils/qzService";
 
-function generatePrintHtml(labels) {
+function generatePrintHtml(labels, labelsPerRow = 1) {
   return `
     <!doctype html>
     <html>
@@ -17,31 +17,41 @@ function generatePrintHtml(labels) {
         <title>Print Barcode Labels</title>
         <style>
           * { box-sizing: border-box; margin: 0; padding: 0; }
-          body { background: #fff; color: #000; margin: 0; padding: 0; font-family: monospace; }
+          body { background: #fff; color: #000; margin: 0; padding: 6mm; font-family: Arial, sans-serif; }
           @media print {
-            @page { margin: 0; size: auto; }
+            @page { margin: 6mm; size: A4; }
+            body { padding: 0; }
           }
-          .barcode-strip {
-            display: block;
+          .label-grid {
+            display: grid;
+            grid-template-columns: repeat(${labelsPerRow}, 1fr);
+            gap: 4mm;
             width: 100%;
-            margin: 0;
-            padding: 0;
           }
           .barcode-card {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            width: 100%;
-            padding: 2px 0;
+            padding: 4px 6px 6px;
             box-sizing: border-box;
-            page-break-after: always;
-            break-after: page;
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+          .barcode-name {
+            font-size: 10px;
+            font-weight: bold;
+            text-align: center;
+            color: #000;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+            margin-bottom: 3px;
           }
           .barcode-svg {
-            width: 60% !important;
-            max-width: 140px;
-            height: auto;
+            width: 80%;
+            max-width: 220px;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -49,27 +59,30 @@ function generatePrintHtml(labels) {
           .barcode-svg svg {
             width: 100% !important;
             height: auto !important;
-            max-height: 32px;
+            max-height: 64px;
+            min-height: 48px;
             display: block;
             shape-rendering: crispEdges;
           }
           .barcode-digits {
-            margin-top: 3px;
-            font-size: 10px;
+            margin-top: 4px;
+            font-size: 11px;
             font-weight: bold;
             text-align: center;
-            letter-spacing: 1px;
+            letter-spacing: 2px;
             white-space: nowrap;
             color: #000;
+            font-family: monospace;
           }
         </style>
       </head>
       <body>
-        <div class="barcode-strip">
+        <div class="label-grid">
           ${labels
             .map(
               (label) => `
             <div class="barcode-card">
+              ${label.name ? `<div class="barcode-name">${label.name}</div>` : ''}
               <div class="barcode-svg">${label.svg}</div>
               <div class="barcode-digits">${label.barcode}</div>
             </div>
@@ -82,7 +95,9 @@ function generatePrintHtml(labels) {
   `;
 }
 
-function printLabelsInBrowser(labels) {
+
+
+function printLabelsInBrowser(labels, labelsPerRow = 1) {
   return new Promise((resolve) => {
     const iframe = document.createElement("iframe");
     iframe.style.position = "fixed";
@@ -105,7 +120,7 @@ function printLabelsInBrowser(labels) {
     }
 
     frameDocument.open();
-    frameDocument.write(generatePrintHtml(labels));
+    frameDocument.write(generatePrintHtml(labels, labelsPerRow));
     frameDocument.close();
 
     setTimeout(() => {
@@ -131,6 +146,7 @@ export default function BarcodeLabelsPage() {
   });
   const [selectedItems, setSelectedItems] = useState({});
   const [isGenerating, setIsGenerating] = useState(false);
+  const [labelsPerRow, setLabelsPerRow] = useState(1);
   const alert = useAlert();
   const [pageError, setPageError] = useState(null);
   const { settings } = useSettings();
@@ -219,10 +235,10 @@ export default function BarcodeLabelsPage() {
           );
         }
 
-        await printHtmlViaQZ(printerName, generatePrintHtml(generatedLabels));
+        await printHtmlViaQZ(printerName, generatePrintHtml(generatedLabels, labelsPerRow));
         alert.success("Labels sent to printer successfully.");
       } else {
-        await printLabelsInBrowser(generatedLabels);
+        await printLabelsInBrowser(generatedLabels, labelsPerRow);
         alert.success("Print dialog opened for barcode labels.");
       }
     } catch (error) {
@@ -244,14 +260,31 @@ export default function BarcodeLabelsPage() {
               Select products and quantities to print barcode labels.
             </p>
           </div>
-          <button
-            onClick={handlePrint}
-            disabled={isGenerating || Object.keys(selectedItems).length === 0}
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-50"
-          >
-            <Icon name="printer" className="size-4" />
-            {isGenerating ? "Generating..." : "Print Labels"}
-          </button>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <span className="font-medium whitespace-nowrap">Labels per row:</span>
+              <select
+                value={labelsPerRow}
+                onChange={(e) => setLabelsPerRow(Number(e.target.value))}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-semibold text-slate-700 focus:border-blue-400 focus:outline-none"
+              >
+                <option value={1}>1 per row (default)</option>
+                <option value={2}>2 per row</option>
+                <option value={3}>3 per row</option>
+                <option value={4}>4 per row</option>
+                <option value={5}>5 per row</option>
+                <option value={6}>6 per row</option>
+              </select>
+            </label>
+            <button
+              onClick={handlePrint}
+              disabled={isGenerating || Object.keys(selectedItems).length === 0}
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-50"
+            >
+              <Icon name="printer" className="size-4" />
+              {isGenerating ? "Generating..." : "Print Labels"}
+            </button>
+          </div>
         </header>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
