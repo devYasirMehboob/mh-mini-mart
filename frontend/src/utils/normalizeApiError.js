@@ -3,6 +3,10 @@ export default function normalizeApiError(error) {
 
   // If it's not an axios error, or has no response, it's likely a network error or crash
   if (!error.response) {
+    // Silently ignore AbortController cancellations
+    if (error.code === 'ERR_CANCELED' || error.message === 'canceled') {
+      return { type: 'canceled', message: '', fieldErrors: {}, status: 0, code: 'ERR_CANCELED', requestId };
+    }
     return {
       type: 'network',
       message: `The local server is unavailable. Check Apache and MySQL.\nReference: ${requestId}`,

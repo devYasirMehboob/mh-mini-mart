@@ -50,6 +50,11 @@ apiClient.interceptors.response.use(
     const status = error.response?.status;
     const debug = error.response?.data?.debug;
     
+    // Silently ignore canceled requests (AbortController cleanup on unmount/re-render)
+    if (error.code === 'ERR_CANCELED' || error.message === 'canceled') {
+      return Promise.reject(error);
+    }
+
     // Handle Network Errors (no response from server)
     if (!error.response) {
       const isOfflineSession = Boolean(typeof sessionStorage !== "undefined" && sessionStorage.getItem("mh_offline_session"));
