@@ -21,24 +21,38 @@ final class CustomerRepository
         )->fetchColumn();
 
         $totalSales = $this->database->connection()->query(
-            "SELECT COALESCE(SUM(grand_total), 0) FROM sales WHERE status = 'completed'"
+            "SELECT COALESCE(SUM(s.grand_total), 0)
+             FROM sales s
+             JOIN customers c ON c.id = s.customer_id
+             WHERE s.status = 'completed' AND c.is_system_walk_in = 0"
         )->fetchColumn();
 
         $totalCredit = $this->database->connection()->query(
-            "SELECT COALESCE(SUM(credit_amount), 0) FROM sales WHERE status = 'completed'"
+            "SELECT COALESCE(SUM(s.credit_amount), 0)
+             FROM sales s
+             JOIN customers c ON c.id = s.customer_id
+             WHERE s.status = 'completed' AND c.is_system_walk_in = 0"
+        )->fetchColumn();
+
+        $totalPayments = $this->database->connection()->query(
+            "SELECT COALESCE(SUM(cp.amount), 0)
+             FROM customer_payments cp
+             JOIN customers c ON c.id = cp.customer_id
+             WHERE cp.status = 'active' AND c.is_system_walk_in = 0"
         )->fetchColumn();
 
         $outstanding = (float) $outstanding;
         $totalSales = (float) $totalSales;
         $totalCredit = (float) $totalCredit;
+        $totalPayments = (float) $totalPayments;
 
-        $recovered = max(0, $totalCredit - $outstanding);
+        $recovered = max(0.0, $totalCredit - $outstanding);
         $recoveryPercentage = $totalCredit > 0 ? round(($recovered / $totalCredit) * 100, 1) : 0;
 
         return [
             'total_outstanding' => $outstanding,
             'total_sales' => $totalSales,
-            'recovery_percentage' => $recoveryPercentage,
+            'recovery_percentage' => min(100.0, max(0.0, $recoveryPercentage)),
             'total_recovered' => $recovered,
         ];
     }
