@@ -177,33 +177,32 @@ function PosPage() {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const categoryScrollRef = useRef(null);
-  const [isCategoryHovered, setIsCategoryHovered] = useState(false);
-  const [isManuallyInteracting, setIsManuallyInteracting] = useState(false);
-  const manualTimerRef = useRef(null);
+  const isHoveredRef = useRef(false);
+  const isPausedUntilRef = useRef(0);
+  const pauseUntilEndRef = useRef(0);
 
   useEffect(() => {
     const container = categoryScrollRef.current;
     if (!container) return;
 
     let animId;
-    let pauseTimer = null;
 
     const step = () => {
-      if (!isCategoryHovered && !isManuallyInteracting && container) {
+      const now = Date.now();
+      if (!isHoveredRef.current && now > isPausedUntilRef.current && container) {
         if (container.scrollWidth > container.clientWidth) {
           if (
             container.scrollLeft + container.clientWidth >=
             container.scrollWidth - 2
           ) {
-            if (!pauseTimer) {
-              pauseTimer = setTimeout(() => {
-                container.scrollTo({ left: 0, behavior: "smooth" });
-                setTimeout(() => {
-                  pauseTimer = null;
-                }, 1200);
-              }, 2000);
+            if (pauseUntilEndRef.current === 0) {
+              pauseUntilEndRef.current = now + 2000;
+            } else if (now > pauseUntilEndRef.current) {
+              container.scrollTo({ left: 0, behavior: "smooth" });
+              pauseUntilEndRef.current = now + 1200;
             }
-          } else if (!pauseTimer) {
+          } else {
+            pauseUntilEndRef.current = 0;
             container.scrollLeft += 0.5;
           }
         }
@@ -215,20 +214,15 @@ function PosPage() {
 
     return () => {
       cancelAnimationFrame(animId);
-      if (pauseTimer) clearTimeout(pauseTimer);
-      if (manualTimerRef.current) clearTimeout(manualTimerRef.current);
     };
-  }, [isCategoryHovered, isManuallyInteracting, categories.length]);
+  }, [categories.length]);
 
   const scrollCategory = (direction) => {
     const container = categoryScrollRef.current;
     if (!container) return;
 
-    setIsManuallyInteracting(true);
-    if (manualTimerRef.current) clearTimeout(manualTimerRef.current);
-    manualTimerRef.current = setTimeout(() => {
-      setIsManuallyInteracting(false);
-    }, 4000);
+    // Pause auto-scroll for exactly 3 seconds after clicking arrow
+    isPausedUntilRef.current = Date.now() + 3000;
 
     const children = Array.from(container.children);
     if (!children.length) return;
@@ -902,7 +896,15 @@ function PosPage() {
                 </form>
               )}
             </div>
-            <div className="relative mt-4 flex items-center gap-1.5">
+            <div
+              className="relative mt-4 flex items-center gap-1.5"
+              onMouseEnter={() => {
+                isHoveredRef.current = true;
+              }}
+              onMouseLeave={() => {
+                isHoveredRef.current = false;
+              }}
+            >
               <button
                 type="button"
                 aria-label="Previous category"
@@ -915,8 +917,6 @@ function PosPage() {
 
               <div
                 ref={categoryScrollRef}
-                onMouseEnter={() => setIsCategoryHovered(true)}
-                onMouseLeave={() => setIsCategoryHovered(false)}
                 className="no-scrollbar flex flex-1 items-center gap-2 overflow-x-auto py-0.5"
               >
                 <Filter
