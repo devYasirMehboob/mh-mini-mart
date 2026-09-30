@@ -204,26 +204,17 @@ function SettingsPage() {
       </header>
       {formError && <AlertBanner type="error" message={formError} />}
       {dirty && !formError && <AlertBanner type="warning" message="You have unsaved changes in this section." />}
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-      {active === "shop" && (
-        <LogoUploader
-          shop={settings.shop}
-          isBusy={busy}
-          onUpload={upload}
-          onRemove={remove}
-        />
-      )}
-      <div className="flex flex-col lg:grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px] xl:grid-cols-[minmax(0,1fr)_300px]">
-        <aside className="lg:sticky lg:top-[94px] lg:order-last">
-          <SettingsNavigation
-            sections={settingsSections}
-            active={active}
-            onSelect={select}
-            dirty={dirty ? active : null}
-          />
-        </aside>
+      <div className="grid w-full items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px] xl:grid-cols-[minmax(0,1fr)_300px]">
+        <main className="min-w-0 space-y-6">
+          {active === "shop" && (
+            <LogoUploader
+              shop={settings.shop}
+              isBusy={busy}
+              onUpload={upload}
+              onRemove={remove}
+            />
+          )}
 
-        <main>
           {active === "offline" ? (
             <OfflineSettingsForm />
           ) : (
@@ -244,7 +235,15 @@ function SettingsPage() {
             </>
           )}
         </main>
-      </div>
+
+        <aside className="lg:sticky lg:top-[94px]">
+          <SettingsNavigation
+            sections={settingsSections}
+            active={active}
+            onSelect={select}
+            dirty={dirty ? active : null}
+          />
+        </aside>
       </div>
     </div>
   );
