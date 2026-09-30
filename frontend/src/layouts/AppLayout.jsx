@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import Icon from "../components/Icon";
 import useAuth from "../hooks/useAuth";
 import usePermissions from "../hooks/usePermissions";
@@ -220,10 +220,12 @@ function AppLayout() {
           />
         </button>
 
-        <div
-          className={`flex h-14 items-center transition-all duration-300 ${isCollapsed ? "lg:w-12 lg:justify-center lg:px-0 lg:mx-auto" : "w-full px-2"}`}
+        <Link
+          to="/dashboard"
+          title="Go to Dashboard"
+          className={`group flex h-14 items-center transition-all duration-300 ${isCollapsed ? "lg:w-12 lg:justify-center lg:px-0 lg:mx-auto" : "w-full px-2"}`}
         >
-          <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-2xl bg-slate-950 text-sm font-extrabold text-white shadow-lg shadow-slate-200">
+          <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-2xl bg-slate-950 text-sm font-extrabold text-white shadow-lg shadow-slate-200 transition-transform duration-200 group-hover:scale-105 active:scale-95 cursor-pointer">
             {shop.logo_url ? (
               <img
                 src={shop.logo_url}
@@ -237,14 +239,14 @@ function AppLayout() {
           <div
             className={`transition-all duration-300 whitespace-nowrap overflow-hidden ${isCollapsed ? "lg:max-w-0 lg:opacity-0 lg:ml-0" : "max-w-[150px] opacity-100 ml-3"}`}
           >
-            <strong className="block text-[15px] font-extrabold tracking-[-0.02em] text-slate-950">
+            <strong className="block text-[15px] font-extrabold tracking-[-0.02em] text-slate-950 group-hover:text-blue-600 transition-colors">
               {shop.shop_name || "MH Mini Mart"}
             </strong>
             <span className="mt-0.5 block text-[11px] font-medium text-slate-400">
               Store management
             </span>
           </div>
-        </div>
+        </Link>
 
         <div className="my-4 h-px shrink-0 bg-slate-100" />
 

@@ -53,7 +53,7 @@ final class DashboardService
     private function monthSeries(array $rows): array
     {
         $today = new DateTimeImmutable($this->repository->currentDate());
-        return $this->fillPeriods($rows, 1, (int) $today->format('j'));
+        return $this->fillPeriods($rows, 1, (int) $today->format('t'));
     }
 
     private function fillPeriods(array $rows, int $start, int $end, bool $hours = false): array
