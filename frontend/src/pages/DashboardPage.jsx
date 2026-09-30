@@ -360,35 +360,13 @@ function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-          <h2 className="text-[28px] font-extrabold tracking-[-0.035em] text-slate-950">
-            Overview
-          </h2>
-          <p className="mt-1.5 text-sm text-slate-500">
-            A clear view of your shop activity for {formattedDate}.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            disabled={isRefreshing}
-            onClick={() => loadDashboard(true)}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
-          >
-            <Icon
-              name="refresh"
-              className={`size-4 ${isRefreshing ? "animate-spin" : ""}`}
-            />{" "}
-            Refresh
-          </button>
-          <Link
-            to="/pos"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-100"
-          >
-            <Icon name="pos" className="size-[18px]" /> Open POS
-          </Link>
-        </div>
+      <section>
+        <h2 className="text-[28px] font-extrabold tracking-[-0.035em] text-slate-950">
+          Overview
+        </h2>
+        <p className="mt-1.5 text-sm text-slate-500">
+          A clear view of your shop activity for {formattedDate}.
+        </p>
       </section>
 
       <AlertMessage message={error} onDismiss={() => setError("")} />

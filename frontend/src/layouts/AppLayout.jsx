@@ -270,8 +270,8 @@ function AppLayout() {
                       `group flex min-h-12 items-center rounded-xl transition-all duration-300 overflow-hidden ${isActive ? "bg-blue-600 text-white shadow-md shadow-blue-500/20" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"} ${isCollapsed ? "lg:w-12 lg:px-0 lg:justify-center lg:mx-auto" : "w-full px-3"}`
                     }
                   >
-                    <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-slate-50 text-slate-400 transition-colors group-hover:bg-white group-hover:text-blue-600 group-[.active]:bg-transparent group-[.active]:text-white group-[.active]:shadow-none">
-                      <Icon name={item.icon} className="size-[18px]" />
+                    <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-slate-50 text-black transition-colors group-hover:bg-white">
+                      <Icon name={item.icon} className="size-[18px] text-black" strokeWidth={2} />
                     </span>
                     <span
                       className={`transition-all duration-300 whitespace-nowrap overflow-hidden flex-1 ${isCollapsed ? "lg:max-w-0 lg:opacity-0 lg:ml-0" : "max-w-[150px] opacity-100 ml-3"}`}
@@ -452,6 +452,23 @@ function AppLayout() {
                 )}
               </div>
             </div>
+
+            {can("settings.manage") && (
+              <NavLink
+                to="/settings"
+                title="Settings"
+                aria-label="Settings"
+                className={({ isActive }) =>
+                  `grid size-10 place-items-center rounded-full transition-colors focus:outline-none ${
+                    isActive
+                      ? "bg-slate-100 text-slate-950"
+                      : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                  }`
+                }
+              >
+                <Icon name="settings" className="size-[18px]" />
+              </NavLink>
+            )}
 
             {can("notifications.view") && <NotificationBell />}
             <div className="hidden text-right sm:block">
