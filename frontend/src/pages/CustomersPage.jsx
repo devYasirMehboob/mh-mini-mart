@@ -71,9 +71,9 @@ function CustomersPage() {
         <button
           type="button"
           onClick={() => { setEditCustomer(null); setShowForm(true); }}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700"
+          className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-blue-600 px-4.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-95"
         >
-          <Icon name="plus" className="size-3.5" />
+          <Icon name="plus" className="size-4" strokeWidth={2.5} />
           New Customer
         </button>
       </div>

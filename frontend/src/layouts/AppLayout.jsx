@@ -262,35 +262,104 @@ function AppLayout() {
                 {group.label}
               </p>
               <div className="space-y-1">
-                {group.items.map((item) => (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    title={isCollapsed ? item.label : undefined}
-                    onClick={() => setSidebarOpen(false)}
-                    className={({ isActive }) =>
-                      `group flex min-h-12 items-center rounded-xl transition-all duration-300 overflow-hidden ${isActive ? "bg-blue-600 text-white shadow-md shadow-blue-500/20" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"} ${isCollapsed ? "lg:w-12 lg:px-0 lg:justify-center lg:mx-auto" : "w-full px-3"}`
-                    }
-                  >
-                    <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-slate-50 text-black transition-colors group-hover:bg-white">
-                      <Icon name={item.icon} className="size-[18px] text-black" strokeWidth={2} />
-                    </span>
-                    <span
-                      className={`transition-all duration-300 whitespace-nowrap overflow-hidden flex-1 ${isCollapsed ? "lg:max-w-0 lg:opacity-0 lg:ml-0" : "max-w-[150px] opacity-100 ml-3"}`}
+                {group.items.map((item) => {
+                  const isPos = item.path === "/pos";
+                  return (
+                    <NavLink
+                      key={item.path}
+                      to={item.path}
+                      title={isCollapsed ? item.label : undefined}
+                      onClick={() => setSidebarOpen(false)}
+                      className={({ isActive }) => {
+                        let activeBg =
+                          "bg-blue-600 text-white shadow-md shadow-blue-500/20";
+                        if (isPos && isCollapsed && isActive) {
+                          activeBg =
+                            "bg-black text-white shadow-md shadow-black/20";
+                        }
+                        return `group flex min-h-12 items-center rounded-xl transition-all duration-300 overflow-hidden ${
+                          isActive
+                            ? activeBg
+                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                        } ${isCollapsed ? "lg:w-12 lg:px-0 lg:justify-center lg:mx-auto" : "w-full px-3"}`;
+                      }}
                     >
-                      <strong className="block truncate text-[13px] font-bold">
-                        {item.label}
-                      </strong>
-                    </span>
-                    {item.badge && (
-                      <span
-                        className={`rounded-md py-0.5 text-[9px] font-extrabold transition-all duration-300 overflow-hidden whitespace-nowrap bg-white/20 text-current ${isCollapsed ? "lg:max-w-0 lg:opacity-0 lg:px-0 lg:ml-0" : "max-w-[40px] px-1.5 opacity-100 ml-3"}`}
-                      >
-                        {item.badge}
-                      </span>
-                    )}
-                  </NavLink>
-                ))}
+                      {({ isActive }) => {
+                        let tileClass =
+                          "bg-slate-50 text-black group-hover:bg-white";
+                        let iconClass = "text-black";
+
+                        if (isPos) {
+                          if (isActive) {
+                            if (isCollapsed) {
+                              tileClass = "bg-transparent text-white";
+                              iconClass = "text-white";
+                            } else {
+                              tileClass = "bg-black text-white";
+                              iconClass = "text-white";
+                            }
+                          } else {
+                            tileClass =
+                              "bg-slate-50 text-black group-hover:bg-white";
+                            iconClass = "text-black";
+                          }
+                        } else {
+                          if (isActive) {
+                            tileClass = "bg-white text-black";
+                            iconClass = "text-black";
+                          } else {
+                            tileClass =
+                              "bg-slate-50 text-black group-hover:bg-white";
+                            iconClass = "text-black";
+                          }
+                        }
+
+                        let badgeClass = isActive
+                          ? "bg-white/20 text-current"
+                          : "bg-slate-100 text-slate-600";
+                        if (isPos) {
+                          badgeClass = "bg-black text-white";
+                        }
+
+                        return (
+                          <>
+                            <span
+                              className={`grid size-9 shrink-0 place-items-center rounded-xl transition-colors ${tileClass}`}
+                            >
+                              <Icon
+                                name={item.icon}
+                                className={`size-[18px] ${iconClass}`}
+                                strokeWidth={2}
+                              />
+                            </span>
+                            <span
+                              className={`transition-all duration-300 whitespace-nowrap overflow-hidden flex-1 ${
+                                isCollapsed
+                                  ? "lg:max-w-0 lg:opacity-0 lg:ml-0"
+                                  : "max-w-[150px] opacity-100 ml-3"
+                              }`}
+                            >
+                              <strong className="block truncate text-[13px] font-bold">
+                                {item.label}
+                              </strong>
+                            </span>
+                            {item.badge && (
+                              <span
+                                className={`rounded-md py-0.5 text-[9px] font-extrabold transition-all duration-300 overflow-hidden whitespace-nowrap ${badgeClass} ${
+                                  isCollapsed
+                                    ? "lg:max-w-0 lg:opacity-0 lg:px-0 lg:ml-0"
+                                    : "max-w-[40px] px-1.5 opacity-100 ml-3"
+                                }`}
+                              >
+                                {item.badge}
+                              </span>
+                            )}
+                          </>
+                        );
+                      }}
+                    </NavLink>
+                  );
+                })}
               </div>
             </section>
           ))}
