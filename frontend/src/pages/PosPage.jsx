@@ -176,6 +176,91 @@ function PosPage() {
   const [amountWeightProduct, setAmountWeightProduct] = useState(null);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const categoryScrollRef = useRef(null);
+  const [isCategoryHovered, setIsCategoryHovered] = useState(false);
+  const [isManuallyInteracting, setIsManuallyInteracting] = useState(false);
+  const manualTimerRef = useRef(null);
+
+  useEffect(() => {
+    const container = categoryScrollRef.current;
+    if (!container) return;
+
+    let animId;
+    let pauseTimer = null;
+
+    const step = () => {
+      if (!isCategoryHovered && !isManuallyInteracting && container) {
+        if (container.scrollWidth > container.clientWidth) {
+          if (
+            container.scrollLeft + container.clientWidth >=
+            container.scrollWidth - 2
+          ) {
+            if (!pauseTimer) {
+              pauseTimer = setTimeout(() => {
+                container.scrollTo({ left: 0, behavior: "smooth" });
+                setTimeout(() => {
+                  pauseTimer = null;
+                }, 1200);
+              }, 2000);
+            }
+          } else if (!pauseTimer) {
+            container.scrollLeft += 0.5;
+          }
+        }
+      }
+      animId = requestAnimationFrame(step);
+    };
+
+    animId = requestAnimationFrame(step);
+
+    return () => {
+      cancelAnimationFrame(animId);
+      if (pauseTimer) clearTimeout(pauseTimer);
+      if (manualTimerRef.current) clearTimeout(manualTimerRef.current);
+    };
+  }, [isCategoryHovered, isManuallyInteracting, categories.length]);
+
+  const scrollCategory = (direction) => {
+    const container = categoryScrollRef.current;
+    if (!container) return;
+
+    setIsManuallyInteracting(true);
+    if (manualTimerRef.current) clearTimeout(manualTimerRef.current);
+    manualTimerRef.current = setTimeout(() => {
+      setIsManuallyInteracting(false);
+    }, 4000);
+
+    const children = Array.from(container.children);
+    if (!children.length) return;
+
+    const currentScroll = container.scrollLeft;
+
+    if (direction === "next") {
+      const nextChild = children.find(
+        (child) => child.offsetLeft > currentScroll + 15
+      );
+      if (nextChild) {
+        container.scrollTo({
+          left: nextChild.offsetLeft,
+          behavior: "smooth",
+        });
+      } else {
+        container.scrollBy({ left: 130, behavior: "smooth" });
+      }
+    } else {
+      const prevChild = [...children]
+        .reverse()
+        .find((child) => child.offsetLeft < currentScroll - 15);
+      if (prevChild) {
+        container.scrollTo({
+          left: prevChild.offsetLeft,
+          behavior: "smooth",
+        });
+      } else {
+        container.scrollTo({ left: 0, behavior: "smooth" });
+      }
+    }
+  };
   const totals = useMemo(
     () =>
       calculateSaleTotals(
@@ -817,26 +902,53 @@ function PosPage() {
                 </form>
               )}
             </div>
-            <div className="no-scrollbar mt-4 flex gap-2 overflow-x-auto">
-              <Filter
-                active={!category}
-                label="All products"
-                onClick={() => {
-                  setCategory("");
-                  setPage(1);
-                }}
-              />
-              {categories.map((item) => (
+            <div className="relative mt-4 flex items-center gap-1.5">
+              <button
+                type="button"
+                aria-label="Previous category"
+                title="Previous category"
+                onClick={() => scrollCategory("prev")}
+                className="grid size-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50 hover:text-black active:scale-95"
+              >
+                <Icon name="chevron-left" className="size-4" />
+              </button>
+
+              <div
+                ref={categoryScrollRef}
+                onMouseEnter={() => setIsCategoryHovered(true)}
+                onMouseLeave={() => setIsCategoryHovered(false)}
+                className="no-scrollbar flex flex-1 items-center gap-2 overflow-x-auto py-0.5"
+              >
                 <Filter
-                  key={item.id}
-                  active={category === String(item.id)}
-                  label={item.name}
+                  active={!category}
+                  label="All products"
                   onClick={() => {
-                    setCategory(String(item.id));
+                    setCategory("");
                     setPage(1);
                   }}
                 />
-              ))}
+                {categories.map((item) => (
+                  <Filter
+                    key={item.id}
+                    active={category === String(item.id)}
+                    label={item.name}
+                    onClick={() => {
+                      setCategory(String(item.id));
+                      setPage(1);
+                    }}
+                  />
+                ))}
+              </div>
+
+              <button
+                type="button"
+                aria-label="Next category"
+                title="Next category"
+                onClick={() => scrollCategory("next")}
+                className="grid size-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50 hover:text-black active:scale-95"
+              >
+                <Icon name="chevron-right" className="size-4" />
+              </button>
             </div>
           </div>
           {error && (
