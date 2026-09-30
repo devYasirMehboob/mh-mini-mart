@@ -10,7 +10,7 @@ function SalesTable({ sales, permissions, onView, onReceipt, onAction }) {
           <tr>
             <th className="px-4 py-3 font-bold">#</th>
             {["Invoice", "Date & Time", "Cashier", "Customer", "Items", "Subtotal", "Discount", "Tax", "Grand total", "Payment", "Payment status", "Sale status", "Actions"].map((label) => (
-              <th key={label} className={`px-4 py-3 font-bold ${["Subtotal", "Discount", "Tax", "Grand total"].includes(label) ? "text-right" : ""}`}>
+              <th key={label} className={`px-4 py-3 font-bold ${["Subtotal", "Discount", "Tax", "Grand total", "Actions"].includes(label) ? "text-right" : ""}`}>
                 {label}
               </th>
             ))}
@@ -57,23 +57,50 @@ function SalesTable({ sales, permissions, onView, onReceipt, onAction }) {
                 <td className="px-4 py-3.5">
                   <SaleStatusBadge status={sale.status} />
                 </td>
-                <td className="px-4 py-3.5">
-                  <div className="grid grid-cols-2 gap-1 w-max">
-                    <button type="button" onClick={() => onView(sale)} className="grid size-8 place-items-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600" title="View details">
-                      <Icon name="eye" className="size-4" />
-                    </button>
-                    <button type="button" onClick={() => onReceipt(sale)} className="grid size-8 place-items-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600" title="View receipt">
-                      <Icon name="print" className="size-4" />
-                    </button>
-                    {permissions.can_cancel && sale.status === "completed" && (
-                      <button type="button" onClick={() => onAction("cancel", sale)} className="rounded-lg px-2 py-1 text-[10px] font-bold text-red-600 hover:bg-red-50 text-center">
-                        Cancel
+                <td className="px-4 py-2.5 text-right">
+                  <div className="flex flex-col items-end gap-1.5">
+                    {/* Row 1: View & Print */}
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onView(sale)}
+                        className="inline-flex size-6 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 shadow-2xs transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
+                        title="View details"
+                      >
+                        <Icon name="eye" className="size-3.5" />
                       </button>
-                    )}
-                    {permissions.can_refund && sale.status === "completed" && (
-                      <button type="button" onClick={() => onAction("refund", sale)} className="rounded-lg px-2 py-1 text-[10px] font-bold text-amber-700 hover:bg-amber-50 text-center">
-                        Refund
+                      <button
+                        type="button"
+                        onClick={() => onReceipt(sale)}
+                        className="inline-flex size-6 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 shadow-2xs transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
+                        title="View receipt"
+                      >
+                        <Icon name="print" className="size-3.5" />
                       </button>
+                    </div>
+
+                    {/* Row 2: Cancel & Refund */}
+                    {(permissions.can_cancel || permissions.can_refund) && sale.status === "completed" && (
+                      <div className="flex items-center gap-1.5">
+                        {permissions.can_cancel && (
+                          <button
+                            type="button"
+                            onClick={() => onAction("cancel", sale)}
+                            className="inline-flex h-5 items-center rounded-md border border-red-200 bg-red-50/70 px-2 text-[10px] font-bold text-red-600 transition hover:bg-red-100 hover:border-red-300"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                        {permissions.can_refund && (
+                          <button
+                            type="button"
+                            onClick={() => onAction("refund", sale)}
+                            className="inline-flex h-5 items-center rounded-md border border-amber-200 bg-amber-50/70 px-2 text-[10px] font-bold text-amber-700 transition hover:bg-amber-100 hover:border-amber-300"
+                          >
+                            Refund
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </td>

@@ -881,7 +881,7 @@ function PosPage() {
           </div>
           <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
             <div className="flex items-center gap-3">
-              <span className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700">
+              <span className="grid size-10 place-items-center rounded-xl bg-black text-white shadow-2xs">
                 <Icon name="pos" className="size-[18px]" />
               </span>
               <div>
@@ -983,9 +983,9 @@ function PosPage() {
               type="button"
               disabled={!cart.items.length || isSubmitting}
               onClick={holdSale}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-black bg-black text-sm font-bold text-white shadow-sm transition hover:bg-neutral-800 disabled:opacity-40"
             >
-              <Icon name="hold" className="size-4" />
+              <Icon name="hold" className="size-4 text-white" />
               {activeHeldSaleId ? "Update hold" : "Hold sale"}
             </button>
             <button

@@ -1,5 +1,5 @@
 import {
-  ArrowRight, Banknote, Boxes, ChartNoAxesCombined, Check, ChevronLeft, ChevronRight, CircleEllipsis, Clock3,
+  ArrowRight, Banknote, Boxes, ChartNoAxesCombined, Check, ChevronDown, ChevronLeft, ChevronRight, CircleEllipsis, Clock3,
   CreditCard, DatabaseBackup, Download, Eye, KeyRound, Landmark, LayoutDashboard, LockKeyhole, LogOut,
   Menu, Package, Pause, Pencil, Plus, Printer, ReceiptText, RefreshCw, RotateCcw,
   ScanBarcode, Search, Settings, Shapes, ShoppingCart, Smartphone, Trash2,
@@ -28,6 +28,7 @@ const icons = {
   arrow: ArrowRight,
   "chevron-left": ChevronLeft,
   "chevron-right": ChevronRight,
+  "chevron-down": ChevronDown,
   trend: TrendingUp,
   profit: TrendingUp,
   refresh: RefreshCw,

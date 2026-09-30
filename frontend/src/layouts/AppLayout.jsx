@@ -365,14 +365,14 @@ function AppLayout() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="hidden items-center gap-2 md:flex">
+            <div className="hidden items-center gap-2.5 md:flex">
               {can("pos.access") && (
                 <NavLink
                   to="/pos"
-                  className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700 transition hover:bg-emerald-100"
+                  className="inline-flex h-10 items-center gap-2 rounded-lg bg-black px-4 text-xs font-extrabold tracking-wide text-white shadow-sm transition hover:bg-neutral-800 active:scale-[0.98]"
                 >
-                  <Icon name="pos" className="size-3.5" />
-                  POS
+                  <Icon name="pos" className="size-4.5 text-white" />
+                  <span>POS</span>
                 </NavLink>
               )}
 
@@ -380,13 +380,13 @@ function AppLayout() {
                 <button
                   type="button"
                   onClick={() => setAddDropdownOpen(!addDropdownOpen)}
-                  className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-extrabold text-white transition hover:bg-blue-700"
+                  className="inline-flex h-10 items-center gap-2 rounded-lg bg-blue-600 px-4 text-xs font-extrabold tracking-wide text-white shadow-sm shadow-blue-600/20 transition hover:bg-blue-700 hover:shadow-md active:scale-[0.98]"
                 >
-                  <Icon name="plus" className="size-3.5" />
-                  Add New
+                  <Icon name="plus" className="size-4.5 stroke-[2.5]" />
+                  <span>Add New</span>
                   <Icon
                     name="chevron-down"
-                    className="size-3 ml-0.5 opacity-80"
+                    className={`size-3.5 opacity-80 transition-transform duration-200 ${addDropdownOpen ? "rotate-180" : ""}`}
                   />
                 </button>
 
