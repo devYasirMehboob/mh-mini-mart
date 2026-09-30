@@ -980,7 +980,7 @@ function PosPage() {
               }))
             }
           />
-          <div className="grid grid-cols-[0.8fr_1.2fr] gap-2 border-t border-slate-100 bg-slate-50/60 p-4">
+          <div className="sticky bottom-0 z-20 grid grid-cols-[0.8fr_1.2fr] gap-2 border-t border-slate-200/90 bg-white p-4 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
             <button
               type="button"
               disabled={!cart.items.length || isSubmitting}
