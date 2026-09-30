@@ -171,6 +171,7 @@ function PosPage() {
   const [receipt, setReceipt] = useState(null);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptLoading, setReceiptLoading] = useState(false);
+  const [printDirectly, setPrintDirectly] = useState(false);
   const [stockRefresh, setStockRefresh] = useState(0);
   const [amountWeightProduct, setAmountWeightProduct] = useState(null);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -720,6 +721,7 @@ function PosPage() {
       const data = await getSaleReceipt(savedSale.id);
       setReceipt(data);
       setSavedSale(null);
+      setPrintDirectly(true);
       setReceiptOpen(true);
     } catch (failure) {
       notify(normalizeApiError(failure).message, "error");
@@ -1027,8 +1029,11 @@ function PosPage() {
         isOpen={receiptOpen}
         receipt={receipt}
         isLoading={false}
-        autoPrint={receiptSettings.auto_print}
-        onClose={() => setReceiptOpen(false)}
+        autoPrint={Boolean(receiptSettings.auto_print || printDirectly)}
+        onClose={() => {
+          setReceiptOpen(false);
+          setPrintDirectly(false);
+        }}
       />
       <AmountWeightModal
         product={amountWeightProduct}
