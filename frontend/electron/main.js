@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { initDatabase, searchProducts, recordSale } = require('./db');
 const { checkServerOnline, pushSalesToServer, pullProductsFromServer } = require('./sync');
@@ -37,8 +37,13 @@ function createWindow() {
 
 // ----------------- App Lifecycle -----------------
 app.whenReady().then(() => {
-  initDatabase();
-  createWindow();
+  try {
+    initDatabase();
+    createWindow();
+  } catch (err) {
+    console.error('Failed to initialize app:', err);
+    dialog.showErrorBox('Initialization Error', err.message);
+  }
 
   // Background Sync Loop (runs every 60 seconds)
   setInterval(async () => {

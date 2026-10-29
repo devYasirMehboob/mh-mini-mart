@@ -264,6 +264,7 @@ function markSaleSynced(offlineSaleId, serverInvoiceNumber) {
 }
 
 module.exports = {
+  initDatabase,
   getDatabase,
   upsertProducts,
   searchProducts,
