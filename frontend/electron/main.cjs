@@ -1,10 +1,21 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
-const { initDatabase, searchProducts, recordSale } = require('./db');
-const { checkServerOnline, pushSalesToServer, pullProductsFromServer } = require('./sync');
+const { initDatabase, searchProducts, recordSale } = require('./db.cjs');
+const { checkServerOnline, pushSalesToServer, pullProductsFromServer } = require('./sync.cjs');
 
 let mainWindow = null;
 const API_URL = process.env.VITE_API_BASE_URL || 'https://store.mhminimart.com/api';
+
+process.on('uncaughtException', (err) => {
+  console.error('[Main] Uncaught Exception:', err);
+  try {
+    dialog.showErrorBox('MH Mini Mart - Application Error', (err && err.stack) || String(err));
+  } catch (_) {}
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Main] Unhandled Rejection:', reason);
+});
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -15,19 +26,37 @@ function createWindow() {
     title: 'MH Mini Mart POS',
     icon: path.join(__dirname, '../public/icon-512.png'),
     autoHideMenuBar: true,
+    show: true,
+    backgroundColor: '#f6f7f9',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false, // Allows loading local assets seamlessly
+      webSecurity: false,
     },
+  });
+
+  // Enable F12 for DevTools if ever needed
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'F12' && input.type === 'keyDown') {
+      mainWindow.webContents.toggleDevTools();
+    }
+  });
+
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    console.error('Failed to load:', errorCode, errorDescription, validatedURL);
+    dialog.showErrorBox('Page Load Error', `${errorDescription} (Code: ${errorCode})\nURL: ${validatedURL}`);
   });
 
   const devUrl = process.env.VITE_DEV_SERVER_URL;
   if (devUrl) {
     mainWindow.loadURL(devUrl);
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    const indexPath = path.join(__dirname, '../dist/index.html');
+    mainWindow.loadFile(indexPath).catch((err) => {
+      console.error('loadFile error:', err);
+      dialog.showErrorBox('Startup Error', `Failed to load UI: ${err.message}\nPath: ${indexPath}`);
+    });
   }
 
   mainWindow.on('closed', () => {
@@ -39,18 +68,23 @@ function createWindow() {
 app.whenReady().then(() => {
   try {
     initDatabase();
-    createWindow();
   } catch (err) {
-    console.error('Failed to initialize app:', err);
-    dialog.showErrorBox('Initialization Error', err.message);
+    console.error('Failed to initialize local database:', err);
+    dialog.showErrorBox('Database Error', `Failed to initialize offline database:\n${err.message}`);
   }
+
+  createWindow();
 
   // Background Sync Loop (runs every 60 seconds)
   setInterval(async () => {
-    const isOnline = await checkServerOnline(API_URL);
-    if (isOnline) {
-      await pushSalesToServer(API_URL);
-      await pullProductsFromServer(API_URL);
+    try {
+      const isOnline = await checkServerOnline(API_URL);
+      if (isOnline) {
+        await pushSalesToServer(API_URL);
+        await pullProductsFromServer(API_URL);
+      }
+    } catch (e) {
+      console.warn('[Sync Loop Warning]', e.message);
     }
   }, 60000);
 
@@ -98,24 +132,30 @@ ipcMain.handle('printer:printReceipt', async (event, { receiptHtml, printerName 
   return new Promise((resolve) => {
     const printWin = new BrowserWindow({
       show: false,
-      webPreferences: { nodeIntegration: false },
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+      },
     });
 
     printWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(receiptHtml)}`);
 
     printWin.webContents.on('did-finish-load', () => {
-      const options = {
+      const printOptions = {
         silent: true,
         printBackground: true,
+        margins: { marginType: 'none' },
       };
+
       if (printerName) {
-        options.deviceName = printerName;
+        printOptions.deviceName = printerName;
       }
 
-      printWin.webContents.print(options, (success, failureReason) => {
+      printWin.webContents.print(printOptions, (success, errorType) => {
         printWin.close();
         if (!success) {
-          resolve({ success: false, error: failureReason });
+          console.error('[Printer] Print failed:', errorType);
+          resolve({ success: false, error: errorType });
         } else {
           resolve({ success: true });
         }
@@ -124,18 +164,18 @@ ipcMain.handle('printer:printReceipt', async (event, { receiptHtml, printerName 
   });
 });
 
-// Sync: Manual Trigger
+// Sync: Trigger Manual Sync
 ipcMain.handle('sync:trigger', async () => {
   const isOnline = await checkServerOnline(API_URL);
   if (!isOnline) {
-    return { online: false, message: 'Server is currently offline.' };
+    return { success: false, message: 'Server is currently unreachable.' };
   }
-  const salesResult = await pushSalesToServer(API_URL);
-  const productsResult = await pullProductsFromServer(API_URL);
-  return { online: true, salesSynced: salesResult.synced, productsCached: productsResult.count };
+  const pushed = await pushSalesToServer(API_URL);
+  const pulled = await pullProductsFromServer(API_URL);
+  return { success: true, pushed, pulled };
 });
 
-// Sync: Online Status Check
+// Sync: Check Online Status
 ipcMain.handle('sync:checkOnline', async () => {
   return checkServerOnline(API_URL);
 });

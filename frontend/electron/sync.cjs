@@ -1,6 +1,6 @@
 const https = require('https');
 const http = require('http');
-const { getPendingSales, markSaleSynced, upsertProducts } = require('./db');
+const { getPendingSales, markSaleSynced, upsertProducts } = require('./db.cjs');
 
 function fetchJson(url, options = {}) {
   return new Promise((resolve, reject) => {
