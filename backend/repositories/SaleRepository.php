@@ -42,10 +42,23 @@ final class SaleRepository
         $data['customer_payment_applied'] = $data['customer_payment_applied'] ?? '0.00';
         $data['advance_used'] = $data['advance_used'] ?? '0.00';
         $data['customer_balance_after'] = $data['customer_balance_after'] ?? null;
-        $statement=$this->database->connection()->prepare(
-            'INSERT INTO sales (invoice_number,request_token,offline_sale_id,cashier_id,customer_id,customer_name,customer_phone,previous_customer_balance,credit_amount,customer_payment_applied,advance_used,customer_balance_after,subtotal,discount_type,discount_value,discount_amount,tax_amount,grand_total,amount_received,change_returned,payment_method,payment_status,status,notes) VALUES (:invoice_number,:request_token,:offline_sale_id,:cashier_id,:customer_id,:customer_name,:customer_phone,:previous_customer_balance,:credit_amount,:customer_payment_applied,:advance_used,:customer_balance_after,:subtotal,:discount_type,:discount_value,:discount_amount,:tax_amount,:grand_total,:amount_received,:change_returned,:payment_method,:payment_status,:status,:notes)'
-        );$statement->execute($data);
-        return(int)$this->database->connection()->lastInsertId();
+
+        $hasCreatedAt = !empty($data['created_at']);
+        $columns = 'invoice_number,request_token,offline_sale_id,cashier_id,customer_id,customer_name,customer_phone,previous_customer_balance,credit_amount,customer_payment_applied,advance_used,customer_balance_after,subtotal,discount_type,discount_value,discount_amount,tax_amount,grand_total,amount_received,change_returned,payment_method,payment_status,status,notes';
+        $values = ':invoice_number,:request_token,:offline_sale_id,:cashier_id,:customer_id,:customer_name,:customer_phone,:previous_customer_balance,:credit_amount,:customer_payment_applied,:advance_used,:customer_balance_after,:subtotal,:discount_type,:discount_value,:discount_amount,:tax_amount,:grand_total,:amount_received,:change_returned,:payment_method,:payment_status,:status,:notes';
+
+        if ($hasCreatedAt) {
+            $columns .= ',created_at';
+            $values .= ',:created_at';
+        } else {
+            unset($data['created_at']);
+        }
+
+        $statement = $this->database->connection()->prepare(
+            "INSERT INTO sales ($columns) VALUES ($values)"
+        );
+        $statement->execute($data);
+        return (int)$this->database->connection()->lastInsertId();
     }
 
     public function paginate(array $filters): array

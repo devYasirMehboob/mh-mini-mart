@@ -2,8 +2,8 @@ import apiClient from "./apiClient";
 
 // ---- Customer CRUD ----
 
-export async function getCustomers(params = {}) {
-  const response = await apiClient.get("/customers", { params });
+export async function getCustomers(params = {}, config = {}) {
+  const response = await apiClient.get("/customers", { params, ...config });
   return response.data;
 }
 

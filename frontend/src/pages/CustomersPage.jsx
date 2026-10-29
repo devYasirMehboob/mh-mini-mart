@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { getCustomers, patchCustomerStatus, getCustomersMetrics } from "../api/customersApi";
+import { getCachedCustomers } from "../utils/idb";
 import normalizeApiError from "../utils/normalizeApiError";
 import CustomerForm from "../components/customers/CustomerForm";
 import ReceiveKhataPaymentDialog from "../components/customers/ReceiveKhataPaymentDialog";
@@ -26,6 +27,42 @@ function CustomersPage() {
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
+
+    if (!navigator.onLine) {
+      try {
+        const cached = await getCachedCustomers();
+        let filtered = cached;
+        if (search) {
+          const s = search.toLowerCase();
+          filtered = filtered.filter(
+            (c) =>
+              (c.name && c.name.toLowerCase().includes(s)) ||
+              (c.phone && c.phone.includes(s)) ||
+              (c.customer_code && c.customer_code.toLowerCase().includes(s))
+          );
+        }
+        if (customerType) {
+          filtered = filtered.filter((c) => c.customer_type === customerType);
+        }
+        if (status) {
+          filtered = filtered.filter((c) => c.status === status);
+        }
+        if (hasOutstanding) {
+          filtered = filtered.filter((c) => Number(c.current_balance || 0) > 0);
+        }
+        setData({
+          customers: filtered,
+          pagination: { total: filtered.length, page: 1, total_pages: 1 },
+        });
+        setMetrics(null);
+      } catch (_) {
+        setError("Unable to load offline customer cache.");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     try {
       const [res, metricsRes] = await Promise.all([
         getCustomers({
@@ -38,7 +75,17 @@ function CustomersPage() {
       setData({ customers: res.data?.customers || [], pagination: res.data?.pagination || null });
       setMetrics(metricsRes.data?.metrics || null);
     } catch (err) {
-      setError(normalizeApiError(err).message);
+      try {
+        const cached = await getCachedCustomers();
+        if (cached && cached.length > 0) {
+          setData({ customers: cached, pagination: { total: cached.length, page: 1, total_pages: 1 } });
+          setMetrics(null);
+        } else {
+          setError(normalizeApiError(err).message);
+        }
+      } catch {
+        setError(normalizeApiError(err).message);
+      }
     } finally {
       setLoading(false);
     }

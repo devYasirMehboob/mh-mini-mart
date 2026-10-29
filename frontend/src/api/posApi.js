@@ -1,3 +1,11 @@
 import apiClient from "./apiClient";
-export async function getPosProducts(params={},signal){const response=await apiClient.get("/pos/products",{params,signal});return response.data.data;}
-export async function getPosCategories(){const response=await apiClient.get("/pos/categories");return response.data.data.categories;}
+
+export async function getPosProducts(params = {}, signal, config = {}) {
+  const response = await apiClient.get("/pos/products", { params, signal, ...config });
+  return response.data.data;
+}
+
+export async function getPosCategories(config = {}) {
+  const response = await apiClient.get("/pos/categories", config);
+  return response.data.data.categories;
+}

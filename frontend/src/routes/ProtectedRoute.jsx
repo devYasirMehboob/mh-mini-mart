@@ -1,15 +1,11 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import useAuth from "../hooks/useAuth";
-import useOffline from "../hooks/useOffline";
 
 function ProtectedRoute() {
   const { user, isLoading } = useAuth();
-  const { isEmergencyMode, offlineUser } = useOffline();
   const location = useLocation();
 
-  const currentUser = user || (isEmergencyMode ? offlineUser : null);
-
-  if (isLoading && !currentUser) {
+  if (isLoading && !user) {
     return (
       <div
         className="flex min-h-screen items-center justify-center gap-3 bg-app text-sm text-muted"
@@ -22,7 +18,7 @@ function ProtectedRoute() {
     );
   }
 
-  if (!currentUser) {
+  if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

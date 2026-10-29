@@ -1,21 +1,31 @@
-const CACHE_NAME = 'mh-mini-mart-app-v1';
-const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/vite.svg'
+const CACHE_NAME = 'mh-mini-mart-pwa-v1';
+
+// Static core assets to cache during installation
+const PRECACHE_ASSETS = [
+  './',
+  './index.html',
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png',
+  './mh-favico.jpeg'
 ];
 
-// 1. Install event: Cache App Shell
+// 1. Install event: Pre-cache App Shell with individual error resilience
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
+    caches.open(CACHE_NAME).then(async (cache) => {
+      for (const asset of PRECACHE_ASSETS) {
+        try {
+          await cache.add(asset);
+        } catch (err) {
+          console.warn('[SW] Pre-cache warning for asset:', asset, err);
+        }
+      }
     }).then(() => self.skipWaiting())
   );
 });
 
-// 2. Activate event: Clean up old caches
+// 2. Activate event: Clean up previous version caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -28,61 +38,109 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// 3. Fetch event: Network-first for routes, Cache-first for static assets, Bypass /api/
+// 3. Fetch event: Stale-While-Revalidate for assets, Network-first for routes, Bypass /api/
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
+  const request = event.request;
+  const url = new URL(request.url);
 
-  // NEVER cache API requests generically in Service Worker
-  if (url.pathname.includes('/api/')) {
+  // Only handle http and https requests (ignore chrome-extension://, brave://, blob:, etc.)
+  if (!url.protocol.startsWith('http')) {
     return;
   }
 
-  // Handle Navigation / Page requests (Network-first with offline fallback to index.html)
-  if (event.request.mode === 'navigate') {
+  // Bypass API requests and external telemetry
+  if (url.pathname.includes('/api/') || url.pathname.includes('/backend/')) {
+    return;
+  }
+
+  // Handle SPA Navigation requests (Network-first with offline fallback to index.html)
+  if (request.mode === 'navigate' || request.destination === 'document') {
     event.respondWith(
-      fetch(event.request)
+      fetch(request)
         .then((response) => {
-          // Update cache with latest page version
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
           return response;
         })
-        .catch(() => {
-          // If offline, serve cached index.html SPA entry
-          return caches.match('/index.html') || caches.match(event.request);
+        .catch(async () => {
+          // If offline, serve cached index.html SPA entry point
+          const cache = await caches.open(CACHE_NAME);
+          const cachedResponse =
+            (await cache.match(request)) ||
+            (await cache.match('./index.html')) ||
+            (await cache.match('/index.html')) ||
+            (await cache.match('./')) ||
+            (await cache.match('/'));
+
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+
+          return new Response(
+            `<!DOCTYPE html>
+            <html lang="en">
+            <head><meta charset="utf-8"><title>MH Mini Mart - Offline</title></head>
+            <body style="font-family:sans-serif;text-align:center;padding:50px;">
+              <h2>MH Mini Mart is in Offline Mode</h2>
+              <p>Please open the app when online once, or reload the page.</p>
+              <button onclick="window.location.reload()" style="padding:10px 20px;cursor:pointer;">Retry</button>
+            </body>
+            </html>`,
+            { headers: { 'Content-Type': 'text/html' } }
+          );
         })
     );
     return;
   }
 
-  // Static Assets (JS, CSS, Images, Fonts) - Cache-first with Network backup
+  // Static Assets (JS, CSS, Images, Fonts, Icons)
   if (
+    request.destination === 'script' ||
+    request.destination === 'style' ||
+    request.destination === 'font' ||
+    request.destination === 'image' ||
     url.pathname.endsWith('.js') ||
     url.pathname.endsWith('.css') ||
     url.pathname.endsWith('.woff2') ||
+    url.pathname.endsWith('.woff') ||
+    url.pathname.endsWith('.ttf') ||
     url.pathname.endsWith('.png') ||
     url.pathname.endsWith('.jpg') ||
-    url.pathname.endsWith('.svg')
+    url.pathname.endsWith('.jpeg') ||
+    url.pathname.endsWith('.svg') ||
+    url.pathname.endsWith('.ico')
   ) {
     event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
+      caches.match(request).then((cachedResponse) => {
         if (cachedResponse) {
-          // Fetch update in background (Stale-while-revalidate)
-          fetch(event.request).then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse));
-            }
-          }).catch(() => {/* Ignore network error */});
+          // Background fetch to update cache (Stale-While-Revalidate)
+          fetch(request)
+            .then((networkResponse) => {
+              if (networkResponse && networkResponse.status === 200) {
+                caches.open(CACHE_NAME).then((cache) => cache.put(request, networkResponse));
+              }
+            })
+            .catch(() => {
+              // Ignore network failure when offline
+            });
           return cachedResponse;
         }
 
-        return fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          }
-          return networkResponse;
-        });
+        // Not in cache, fetch from network and cache for offline use
+        return fetch(request)
+          .then((networkResponse) => {
+            if (networkResponse && networkResponse.status === 200) {
+              const clone = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+            }
+            return networkResponse;
+          })
+          .catch(() => {
+            // Asset unavailable offline and not cached
+            return new Response('', { status: 408, statusText: 'Offline Asset Unavailable' });
+          });
       })
     );
   }

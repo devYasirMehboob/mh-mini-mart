@@ -1,6 +1,6 @@
 // IndexedDB Utility for MH Mini Mart Offline Emergency Mode
 const DB_NAME = 'MHMiniMartOfflineDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbInstance = null;
 
@@ -31,6 +31,20 @@ export function openDB() {
         const salesStore = db.createObjectStore('offline_sales', { keyPath: 'offline_sale_id' });
         salesStore.createIndex('sync_status', 'sync_status', { unique: false });
         salesStore.createIndex('created_at', 'created_at', { unique: false });
+      }
+
+      // Store 4: Categories Cache (For Offline POS category pills & filtering)
+      if (!db.objectStoreNames.contains('categories_cache')) {
+        const catStore = db.createObjectStore('categories_cache', { keyPath: 'id' });
+        catStore.createIndex('name', 'name', { unique: false });
+      }
+
+      // Store 5: Customers Cache (For Offline POS customer selection & khata lookup)
+      if (!db.objectStoreNames.contains('customers_cache')) {
+        const custStore = db.createObjectStore('customers_cache', { keyPath: 'id' });
+        custStore.createIndex('name', 'name', { unique: false });
+        custStore.createIndex('phone', 'phone', { unique: false });
+        custStore.createIndex('customer_code', 'customer_code', { unique: false });
       }
     };
 
@@ -150,20 +164,30 @@ export async function getCachedProducts() {
 }
 
 export async function findCachedProductByBarcode(barcode) {
-  const db = await openDB();
+  if (!barcode) return null;
   const products = await getCachedProducts();
   const cleanBarcode = String(barcode).trim().toLowerCase();
-  return products.find(p => p.barcode && String(p.barcode).trim().toLowerCase() === cleanBarcode) || null;
+  return products.find(p => {
+    const b = p.barcode ? String(p.barcode).trim().toLowerCase() : '';
+    const c = p.code ? String(p.code).trim().toLowerCase() : '';
+    return (b !== '' && b === cleanBarcode) || (c !== '' && c === cleanBarcode);
+  }) || null;
 }
 
 export async function deductCachedStock(items) {
+  if (!Array.isArray(items) || items.length === 0) return true;
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction('products_cache', 'readwrite');
     const store = tx.objectStore('products_cache');
 
     items.forEach((item) => {
-      const getReq = store.get(Number(item.product_id));
+      const productId = Number(item.product_id || item.id);
+      if (!productId || isNaN(productId)) return;
+
+      const soldQty = parseFloat(item.cartQuantity || item.quantity || 1);
+
+      const getReq = store.get(productId);
       getReq.onsuccess = () => {
         const product = getReq.result;
         if (product && product.track_stock === 1) {
@@ -173,13 +197,13 @@ export async function deductCachedStock(items) {
               const sourceProduct = sourceReq.result;
               if (sourceProduct) {
                 const consumptionBase = parseFloat(product.consumption_quantity_base || 1);
-                const deduction = parseFloat(item.quantity) * consumptionBase;
+                const deduction = soldQty * consumptionBase;
                 sourceProduct.quantity = Math.max(0, sourceProduct.quantity - deduction);
                 store.put(sourceProduct);
               }
             };
           } else {
-            product.quantity = Math.max(0, product.quantity - parseFloat(item.quantity));
+            product.quantity = Math.max(0, product.quantity - soldQty);
             store.put(product);
           }
         }
@@ -189,6 +213,110 @@ export async function deductCachedStock(items) {
     tx.oncomplete = () => resolve(true);
     tx.onerror = () => reject(tx.error);
   });
+}
+
+// ----------------------------------------------------
+// Categories Cache Operations
+// ----------------------------------------------------
+
+export async function cacheCategories(categoriesList, clearFirst = true) {
+  if (!Array.isArray(categoriesList)) return false;
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('categories_cache', 'readwrite');
+    const store = tx.objectStore('categories_cache');
+
+    if (clearFirst) {
+      store.clear();
+    }
+
+    categoriesList.forEach((cat) => {
+      store.put({
+        id: Number(cat.id),
+        name: cat.name,
+        description: cat.description || '',
+        status: cat.status || 'active',
+      });
+    });
+
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function getCachedCategories() {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('categories_cache', 'readonly');
+    const store = tx.objectStore('categories_cache');
+    const request = store.getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// ----------------------------------------------------
+// Customers Cache Operations
+// ----------------------------------------------------
+
+export async function cacheCustomers(customersList, clearFirst = true) {
+  if (!Array.isArray(customersList)) return false;
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('customers_cache', 'readwrite');
+    const store = tx.objectStore('customers_cache');
+
+    if (clearFirst) {
+      store.clear();
+    }
+
+    customersList.forEach((c) => {
+      store.put({
+        id: Number(c.id),
+        customer_code: c.customer_code || '',
+        name: c.name,
+        phone: c.phone || '',
+        customer_type: c.customer_type || 'regular',
+        khata_enabled: Number(c.khata_enabled || 0),
+        credit_limit: parseFloat(c.credit_limit || 0),
+        current_balance: parseFloat(c.current_balance || 0),
+        advance_balance: parseFloat(c.advance_balance || 0),
+        status: c.status || 'active',
+        is_system_walk_in: Boolean(c.is_system_walk_in),
+      });
+    });
+
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function getCachedCustomers() {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('customers_cache', 'readonly');
+    const store = tx.objectStore('customers_cache');
+    const request = store.getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function searchCachedCustomers(query, limit = 10) {
+  const customers = await getCachedCustomers();
+  if (!query || query.trim() === '') {
+    return customers.filter(c => c.status === 'active' && !c.is_system_walk_in).slice(0, limit);
+  }
+  const q = query.trim().toLowerCase();
+  return customers
+    .filter((c) => {
+      if (c.status !== 'active') return false;
+      const nameMatch = c.name && c.name.toLowerCase().includes(q);
+      const phoneMatch = c.phone && c.phone.toLowerCase().includes(q);
+      const codeMatch = c.customer_code && c.customer_code.toLowerCase().includes(q);
+      return nameMatch || phoneMatch || codeMatch;
+    })
+    .slice(0, limit);
 }
 
 // ----------------------------------------------------

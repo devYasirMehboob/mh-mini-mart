@@ -4,6 +4,8 @@ import Icon from "../components/Icon";
 import useAuth from "../hooks/useAuth";
 import usePermissions from "../hooks/usePermissions";
 import useSettings from "../hooks/useSettings";
+import useOffline from "../hooks/useOffline";
+import usePwaInstall from "../hooks/usePwaInstall";
 import NotificationBell from "../components/notifications/NotificationBell";
 import OfflineBanner from "../components/common/OfflineBanner";
 import GlobalSearchModal from "../components/common/GlobalSearchModal";
@@ -38,7 +40,7 @@ const groups = [
         path: "/customers",
         icon: "users",
         description: "Profiles and Khata",
-        permission: "pos.access",
+        permission: "customers.view",
       },
     ],
   },
@@ -155,6 +157,9 @@ const navigation = groups.flatMap((group) => group.items);
 
 function AppLayout() {
   const { user, logout } = useAuth();
+  const { isOnline, isEmergencyMode, offlineUser, logoutOffline } = useOffline();
+  const { isInstallable, promptInstall } = usePwaInstall();
+  const currentUser = user || (isEmergencyMode ? offlineUser : null) || { name: "User", role: "cashier" };
   const { can } = usePermissions();
   const { settings } = useSettings();
   const shop = settings?.shop || {};
@@ -189,7 +194,15 @@ function AppLayout() {
   }, []);
 
   async function handleLogout() {
-    await logout();
+    if (isEmergencyMode || !isOnline) {
+      logoutOffline();
+    } else {
+      try {
+        await logout();
+      } catch {
+        logoutOffline();
+      }
+    }
     navigate("/login", { replace: true });
   }
 
@@ -373,18 +386,18 @@ function AppLayout() {
           >
             <span
               className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-xs font-extrabold text-blue-700 shadow-sm ring-1 ring-slate-200"
-              title={isCollapsed ? user.name : undefined}
+              title={isCollapsed ? (currentUser?.name || "User") : undefined}
             >
-              {user.name.charAt(0).toUpperCase()}
+              {(currentUser?.name || "U").charAt(0).toUpperCase()}
             </span>
             <div
               className={`transition-all duration-300 whitespace-nowrap overflow-hidden flex-1 ${isCollapsed ? "lg:max-w-0 lg:opacity-0 lg:ml-0" : "max-w-[150px] opacity-100 ml-3"}`}
             >
               <strong className="block truncate text-xs font-extrabold text-slate-800">
-                {user.name}
+                {currentUser?.name || (isEmergencyMode ? "Offline Admin" : "User")}
               </strong>
               <span className="mt-0.5 block truncate text-[10px] capitalize text-slate-400">
-                {user.role} account
+                {isEmergencyMode ? "Offline Emergency" : `${currentUser?.role || "staff"} account`}
               </span>
             </div>
             <button
@@ -402,7 +415,6 @@ function AppLayout() {
       <div
         className={`min-h-screen transition-all duration-300 ${isCollapsed ? "lg:ml-[88px]" : "lg:ml-[280px]"}`}
       >
-        <OfflineBanner />
         <header className="sticky top-0 z-20 flex h-[74px] items-center gap-4 border-b border-slate-200/80 bg-white/95 px-4 backdrop-blur sm:px-7 lg:px-8">
           <button
             className="grid size-10 place-items-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 lg:hidden"
@@ -524,6 +536,18 @@ function AppLayout() {
               </div>
             </div>
 
+            {isInstallable && (
+              <button
+                type="button"
+                onClick={promptInstall}
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 shadow-sm transition hover:bg-blue-100 active:scale-95"
+                title="Install MH Mini Mart App to Desktop / Tablet"
+              >
+                <Icon name="download" className="size-3.5" />
+                <span>Install App</span>
+              </button>
+            )}
+
             {can("settings.manage") && (
               <NavLink
                 to="/settings"
@@ -544,10 +568,10 @@ function AppLayout() {
             {can("notifications.view") && <NotificationBell />}
             <div className="hidden text-right sm:block">
               <p className="text-xs font-extrabold text-slate-800">
-                {user.name}
+                {currentUser?.name || "Staff"}
               </p>
               <p className="mt-0.5 text-[10px] capitalize text-slate-400">
-                {user.role} access
+                {currentUser?.role || "cashier"} access
               </p>
             </div>
             <span className="grid size-10 place-items-center rounded-full bg-blue-600 text-xs font-extrabold text-white ring-4 ring-blue-50">

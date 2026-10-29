@@ -298,6 +298,7 @@ final class SaleService
                 'invoice_number'           => $invoice,
                 'request_token'            => $data['request_token'],
                 'offline_sale_id'          => $data['offline_sale_id'] ?? null,
+                'created_at'               => $data['created_at'] ?? null,
                 'cashier_id'               => $cashierId,
                 'customer_id'              => $customerId,
                 'customer_name'            => $data['customer_name'] ?? ($customerRow ? $customerRow['name'] : null),

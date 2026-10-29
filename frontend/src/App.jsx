@@ -60,11 +60,11 @@ function App() {
               />
               <Route
                 path="customers"
-                element={permitted("pos.access", <CustomersPage />)}
+                element={permitted("customers.view", <CustomersPage />)}
               />
               <Route
                 path="customers/:id"
-                element={permitted("pos.access", <CustomerDetailsPage />)}
+                element={permitted("customers.view", <CustomerDetailsPage />)}
               />
               <Route
                 path="units"

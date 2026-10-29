@@ -13,6 +13,7 @@ const icons = {
   print: Printer,
   refund: RotateCcw,
   export: Download,
+  download: Download,
   products: Package,
   categories: Shapes,
   inventory: Warehouse,

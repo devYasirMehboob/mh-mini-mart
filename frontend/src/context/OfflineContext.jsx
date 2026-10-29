@@ -1,21 +1,26 @@
-import React, { createContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useCallback, useRef } from 'react';
 import apiClient from '../api/apiClient';
-import { getPosProducts } from '../api/posApi';
+import { getPosProducts, getPosCategories } from '../api/posApi';
+import { getCustomers } from '../api/customersApi';
 import {
   getDeviceConfig,
   saveDeviceConfig,
   generateSalt,
   hashPin,
   cacheProducts,
+  cacheCategories,
+  cacheCustomers,
   getOfflineSales,
   updateOfflineSaleStatus,
   getPendingOfflineSalesCount,
 } from '../utils/idb';
 import { logger } from '../utils/logger';
+import useAuth from '../hooks/useAuth';
 
 export const OfflineContext = createContext(null);
 
 export function OfflineProvider({ children }) {
+  const { user } = useAuth();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isEmergencyMode, setIsEmergencyMode] = useState(false);
   const [offlineUser, setOfflineUser] = useState(null);
@@ -23,13 +28,19 @@ export function OfflineProvider({ children }) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatusMessage, setSyncStatusMessage] = useState('');
   const [lastSyncTime, setLastSyncTime] = useState(null);
+  const [lastCacheTime, setLastCacheTime] = useState(null);
   const [deviceConfig, setDeviceConfig] = useState(null);
+  const isCachingRef = useRef(false);
+  const lastCacheTimestampRef = useRef(0);
 
   // Load device config and pending sync count on mount
   const refreshConfig = useCallback(async () => {
     try {
       const cfg = await getDeviceConfig();
       setDeviceConfig(cfg);
+      if (cfg?.last_cached_at) {
+        setLastCacheTime(cfg.last_cached_at);
+      }
       const pendingCount = await getPendingOfflineSalesCount();
       setPendingSyncCount(pendingCount);
 
@@ -66,24 +77,59 @@ export function OfflineProvider({ children }) {
     }
   }, []);
 
-  // Refresh Product Cache from Server (when online)
+  // Refresh Product, Category, and Customer Cache from Server (when online and authenticated)
   const refreshProductCache = useCallback(async () => {
+    if (!user) return { success: false, message: 'User not authenticated' };
+    if (isCachingRef.current) return { success: false, message: 'Already caching' };
+    isCachingRef.current = true;
     try {
-      const resData = await getPosProducts({ limit: 10000 });
-      const productsList = Array.isArray(resData) ? resData : (resData?.products || []);
-      if (Array.isArray(productsList) && productsList.length > 0) {
-        await cacheProducts(productsList, true);
-        return { success: true, count: productsList.length };
+      const [resData, catData, custData] = await Promise.allSettled([
+        getPosProducts({ limit: 10000 }, null, { silent: true }),
+        getPosCategories({ silent: true }),
+        getCustomers({ limit: 1000, status: 'active' }, { silent: true }),
+      ]);
+
+      let prodCount = 0;
+      if (resData.status === 'fulfilled') {
+        const val = resData.value;
+        const productsList = Array.isArray(val) ? val : (val?.products || []);
+        if (Array.isArray(productsList) && productsList.length > 0) {
+          await cacheProducts(productsList, true);
+          prodCount = productsList.length;
+        }
       }
+
+      if (catData.status === 'fulfilled' && Array.isArray(catData.value)) {
+        await cacheCategories(catData.value, true);
+      }
+
+      if (custData.status === 'fulfilled' && custData.value?.data?.customers) {
+        await cacheCustomers(custData.value.data.customers, true);
+      }
+
+      const nowIso = new Date().toISOString();
+      setLastCacheTime(nowIso);
+      lastCacheTimestampRef.current = Date.now();
+
+      // Persist last_cached_at in deviceConfig
+      getDeviceConfig().then((cfg) => {
+        if (cfg) {
+          saveDeviceConfig({ ...cfg, last_cached_at: nowIso }).catch(() => undefined);
+        }
+      }).catch(() => undefined);
+
+      return { success: true, count: prodCount, timestamp: nowIso };
     } catch (err) {
-      logger.error('Failed to refresh offline product cache', err);
+      logger.error('Failed to refresh offline product and data cache', err);
       return { success: false, error: err.message };
+    } finally {
+      isCachingRef.current = false;
     }
-    return { success: false, message: 'No products returned' };
-  }, []);
+  }, [user]);
 
   // Automatic Sync Workflow
   const syncPendingSales = useCallback(async () => {
+    if (!user) return { success: false, message: 'User not authenticated' };
     if (isSyncing) return;
     setIsSyncing(true);
     setSyncStatusMessage('Connecting to server...');
@@ -93,90 +139,81 @@ export function OfflineProvider({ children }) {
       if (!isReachable) {
         setSyncStatusMessage('Server is unreachable.');
         setIsSyncing(false);
-        return { success: false, message: 'Server is unreachable.' };
+        return { success: false, message: 'Server unreachable.' };
       }
 
       const pendingSales = await getOfflineSales('pending');
-      const failedSales = await getOfflineSales('failed');
-      const salesToSync = [...pendingSales, ...failedSales];
+      const conflictSales = await getOfflineSales('conflict');
+      const salesToSync = [...pendingSales, ...conflictSales];
 
       if (salesToSync.length === 0) {
-        setSyncStatusMessage('No pending sales to sync.');
+        setSyncStatusMessage('All sales are synced.');
         setIsSyncing(false);
-        return { success: true, synced: 0 };
+        setPendingSyncCount(0);
+        return { success: true, count: 0 };
       }
 
-      setSyncStatusMessage(`Syncing ${salesToSync.length} offline sales...`);
+      setSyncStatusMessage(`Syncing ${salesToSync.length} offline sale(s)...`);
 
-      // Format payload for backend batch sync endpoint
       const payloadSales = salesToSync.map((s) => ({
         offline_sale_id: s.offline_sale_id,
         request_token: s.request_token || ('off_' + s.offline_sale_id),
+        created_at: s.created_at || null,
         items: s.items.map((i) => ({
           product_id: Number(i.product_id),
           unit_id: i.unit_id ? Number(i.unit_id) : null,
-          quantity: parseFloat(i.quantity),
+          quantity: Number(i.quantity),
+          unit_price: Number(i.unit_price),
         })),
+        subtotal: s.subtotal,
         discount_type: s.discount_type || 'none',
         discount_value: s.discount_value || 0,
         amount_received: s.amount_received || s.grand_total,
-        payment_method: 'cash',
+        payment_method: s.payment_method || 'cash',
+        customer_id: s.customer_id ? Number(s.customer_id) : null,
         customer_name: s.customer_name || null,
         customer_phone: s.customer_phone || null,
-        notes: s.notes ? `[Offline Sale] ${s.notes}` : '[Offline Sale]',
+        notes: s.notes
+          ? (String(s.notes).includes('[Offline Sale]') ? s.notes : `[Offline Sale] ${s.notes}`)
+          : '[Offline Sale]',
       }));
 
       const response = await apiClient.post('/sales/sync-offline', { sales: payloadSales });
 
-      if (response.data?.success && Array.isArray(response.data.data?.results)) {
-        let syncedCount = 0;
-        let conflictCount = 0;
+      if (response.data && response.data.success) {
+        const results = response.data.data?.results || [];
 
-        for (const res of response.data.data.results) {
-          if (res.success) {
-            await updateOfflineSaleStatus(res.offline_sale_id, {
-              sync_status: 'synced',
-              server_sale_id: res.server_sale_id,
-              server_invoice_number: res.invoice_number,
-              synced_at: new Date().toISOString(),
-              sync_attempts: (s => (s?.sync_attempts || 0) + 1),
-            });
-            syncedCount++;
-          } else {
-            const status = res.status === 'conflict' ? 'conflict' : 'failed';
-            await updateOfflineSaleStatus(res.offline_sale_id, {
-              sync_status: status,
-              last_error: res.error || 'Sync failed',
-              sync_attempts: (s => (s?.sync_attempts || 0) + 1),
-            });
-            if (status === 'conflict') conflictCount++;
+        for (const res of results) {
+          if (res.status === 'synced') {
+            await updateOfflineSaleStatus(res.offline_sale_id, 'synced', null, res.sale_id);
+          } else if (res.status === 'conflict') {
+            await updateOfflineSaleStatus(res.offline_sale_id, 'conflict', res.error);
           }
         }
 
-        const remainingPending = await getPendingOfflineSalesCount();
-        setPendingSyncCount(remainingPending);
-        setLastSyncTime(new Date().toISOString());
+        const now = new Date();
+        setLastSyncTime(now.toLocaleTimeString());
+        setSyncStatusMessage(`Successfully synced ${response.data.data?.synced_count || 0} sale(s).`);
 
-        // Refresh product cache after sync to align online stock
-        await refreshProductCache();
+        // Refresh product inventory cache after stock deduction
+        refreshProductCache();
+        await refreshConfig();
 
-        setSyncStatusMessage(`Sync completed: ${syncedCount} synced, ${conflictCount} conflicts.`);
         setIsSyncing(false);
-        return { success: true, synced: syncedCount, conflicts: conflictCount };
+        return { success: true, count: response.data.data?.synced_count || 0 };
       }
     } catch (err) {
-      setSyncStatusMessage(`Sync failed: ${err.message}`);
-      logger.error('Error during offline sales sync', err);
+      logger.error('Offline sales sync error', err);
+      setSyncStatusMessage('Sync failed. Will retry automatically.');
     } finally {
       setIsSyncing(false);
-      refreshConfig();
     }
 
     return { success: false, message: 'Sync process encountered an error.' };
-  }, [isSyncing, checkConnectivity, refreshProductCache, refreshConfig]);
+  }, [user, isSyncing, checkConnectivity, refreshProductCache, refreshConfig]);
 
   // Setup / Enable Offline Emergency Mode (Admin function)
-  const enableEmergencyMode = async (pin, adminUser, expiryDays = 7) => {
+  const enableEmergencyMode = async (pin, adminUser, expiryDays = 30) => {
     if (!pin || pin.length < 6 || pin.length > 8 || !/^\d+$/.test(pin)) {
       return { success: false, message: 'PIN must be 6 to 8 digits.' };
     }
@@ -204,6 +241,7 @@ export function OfflineProvider({ children }) {
       expiry_date: expiryDate,
       failed_attempts: 0,
       lockout_until: null,
+      has_custom_pin: true,
     };
 
     await saveDeviceConfig(configVal);
@@ -228,7 +266,7 @@ export function OfflineProvider({ children }) {
       return { success: false, message: `Account locked due to incorrect attempts. Try again in ${minutesLeft} minute(s).` };
     }
 
-    // Check 7-day Expiry
+    // Check Expiry
     if (new Date(cfg.expiry_date) <= new Date()) {
       return { success: false, message: 'Offline emergency access has expired. Please log in online to renew access.' };
     }
@@ -278,20 +316,113 @@ export function OfflineProvider({ children }) {
     return { success: true, user: userObj };
   };
 
+  // 1-Click login with cached user for seamless offline recovery
+  const loginWithCachedUser = async () => {
+    let userToRestore = null;
+    try {
+      const cachedStr = localStorage.getItem('mh_cached_user');
+      if (cachedStr) {
+        userToRestore = JSON.parse(cachedStr);
+      }
+    } catch (_) {}
+
+    if (!userToRestore) {
+      const cfg = await getDeviceConfig();
+      if (cfg?.admin_user) {
+        userToRestore = cfg.admin_user;
+      }
+    }
+
+    if (!userToRestore) {
+      return { success: false, message: 'No offline session found. Please log in online once first.' };
+    }
+
+    setOfflineUser(userToRestore);
+    setIsEmergencyMode(true);
+
+    sessionStorage.setItem(
+      'mh_offline_session',
+      JSON.stringify({
+        user: userToRestore,
+        expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      })
+    );
+
+    return { success: true, user: userToRestore };
+  };
+
   const logoutOffline = () => {
     setOfflineUser(null);
     setIsEmergencyMode(false);
     sessionStorage.removeItem('mh_offline_session');
   };
 
-  // Event listener for online/offline events
+  // Always load device config on mount
   useEffect(() => {
     refreshConfig();
-    checkConnectivity();
+  }, [refreshConfig]);
+
+  // Auto-provision offline readiness when user is online & logged in
+  useEffect(() => {
+    if (!user) return;
+
+    getDeviceConfig().then(async (cfg) => {
+      if (!cfg || !cfg.is_enabled) {
+        try {
+          const salt = await generateSalt();
+          const defaultPinHash = await hashPin('123456', salt);
+          const deviceId = 'dev_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+          const now = new Date();
+          const expiryDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+          const autoConfig = {
+            device_id: deviceId,
+            device_name: navigator.userAgent.includes('Windows') ? 'Windows POS Terminal' : 'POS Terminal',
+            is_enabled: true,
+            expiry_days: 30,
+            admin_user: {
+              id: user.id,
+              name: user.name,
+              role: user.role,
+              permissions: user.permissions || ['dashboard.view', 'pos.access', 'sales.view', 'sales.reprint', 'sales.complete'],
+            },
+            pin_hash: defaultPinHash,
+            pin_salt: salt,
+            last_verified: now.toISOString(),
+            expiry_date: expiryDate,
+            failed_attempts: 0,
+            lockout_until: null,
+            has_custom_pin: false,
+          };
+          await saveDeviceConfig(autoConfig);
+          setDeviceConfig(autoConfig);
+        } catch (e) {
+          logger.warn('Could not auto-provision device config', e);
+        }
+      }
+    }).catch(() => undefined);
+  }, [user]);
+
+  // When user is authenticated and online, trigger background caching and sync
+  useEffect(() => {
+    if (!user) return;
+
+    checkConnectivity().then((online) => {
+      if (online) {
+        refreshProductCache();
+        syncPendingSales();
+      }
+    });
+  }, [user, checkConnectivity, refreshProductCache, syncPendingSales]);
+
+  // Network online/offline listener & periodic sync (only when user is authenticated)
+  useEffect(() => {
+    if (!user) return;
 
     const handleOnline = () => {
       checkConnectivity().then((online) => {
-        if (online) {
+        if (online && user) {
+          refreshProductCache();
           syncPendingSales();
         }
       });
@@ -304,11 +435,19 @@ export function OfflineProvider({ children }) {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Periodic connectivity ping & sync check every 30s when online
+    // Periodic connectivity ping, auto-sync, and auto-cache every 3 minutes when online and logged in
     const interval = setInterval(() => {
       checkConnectivity().then((online) => {
-        if (online && pendingSyncCount > 0 && !isSyncing) {
-          syncPendingSales();
+        if (online && user) {
+          if (pendingSyncCount > 0 && !isSyncing) {
+            syncPendingSales();
+          }
+
+          // Auto background cache refresh every 3 minutes if online and logged in
+          const now = Date.now();
+          if (now - lastCacheTimestampRef.current > 3 * 60 * 1000) {
+            refreshProductCache();
+          }
         }
       });
     }, 30000);
@@ -318,7 +457,7 @@ export function OfflineProvider({ children }) {
       window.removeEventListener('offline', handleOffline);
       clearInterval(interval);
     };
-  }, [refreshConfig, checkConnectivity, syncPendingSales, pendingSyncCount, isSyncing]);
+  }, [user, checkConnectivity, syncPendingSales, refreshProductCache, pendingSyncCount, isSyncing]);
 
   return (
     <OfflineContext.Provider
@@ -331,8 +470,10 @@ export function OfflineProvider({ children }) {
         isSyncing,
         syncStatusMessage,
         lastSyncTime,
+        lastCacheTime,
         enableEmergencyMode,
         loginWithOfflinePin,
+        loginWithCachedUser,
         logoutOffline,
         syncPendingSales,
         refreshProductCache,
@@ -343,3 +484,5 @@ export function OfflineProvider({ children }) {
     </OfflineContext.Provider>
   );
 }
+
+export default OfflineContext;

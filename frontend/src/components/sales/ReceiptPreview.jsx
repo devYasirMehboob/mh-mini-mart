@@ -135,11 +135,6 @@ function ReceiptPreview({
               `}</style>
 
               <header className="text-center">
-                {(receipt.is_offline || receipt.offline_watermark || receipt.sale?.is_offline) && (
-                  <div className="mb-2 rounded border-2 border-dashed border-red-500 bg-red-50 p-1.5 text-center text-xs font-black text-red-700">
-                    *** Offline Sale — Pending Sync ***
-                  </div>
-                )}
                 <p className="mb-2 text-xs font-bold">
                   رسید نمبر: <span className="barcode-text text-sm">{receipt.sale?.invoice_number || receipt.invoice_number}</span>
                 </p>

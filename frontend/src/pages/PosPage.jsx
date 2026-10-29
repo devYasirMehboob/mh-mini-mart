@@ -31,6 +31,8 @@ import {
   deductCachedStock,
   saveOfflineSale,
   generateOfflineSaleId,
+  getCachedCategories,
+  cacheCategories,
 } from "../utils/idb";
 import { calculateSaleTotals, formatCurrency } from "../utils/calculateSaleTotals";
 
@@ -276,15 +278,26 @@ function PosPage() {
 
   useEffect(() => {
     document.title = "POS | MH Mini Mart";
-    if (isOnline) {
+    if (isOnline && !isEmergencyMode) {
       getPosCategories()
-        .then(setCategories)
+        .then((cats) => {
+          setCategories(cats);
+          cacheCategories(cats).catch(() => undefined);
+        })
         .catch((failure) =>
           notify(normalizeApiError(failure).message, "error"),
         );
       refreshProductCache().catch(() => undefined);
+    } else {
+      getCachedCategories()
+        .then((cats) => {
+          if (Array.isArray(cats) && cats.length > 0) {
+            setCategories(cats);
+          }
+        })
+        .catch(() => undefined);
     }
-  }, [notify, isOnline, refreshProductCache]);
+  }, [notify, isOnline, isEmergencyMode, refreshProductCache]);
 
   useEffect(() => {
     localStorage.setItem(
@@ -320,44 +333,6 @@ function PosPage() {
     setLoading(true);
     setError("");
 
-    if (!isOnline || isEmergencyMode) {
-      getCachedProducts()
-        .then((cachedList) => {
-          let filtered = cachedList.filter(
-            (p) => p.status === "active" || !p.status,
-          );
-          if (category) {
-            filtered = filtered.filter(
-              (p) =>
-                (p.category_id && String(p.category_id) === String(category)) ||
-                (p.category_name &&
-                  p.category_name.toLowerCase() ===
-                    String(category).toLowerCase()),
-            );
-          }
-          if (query) {
-            const q = query.toLowerCase();
-            filtered = filtered.filter(
-              (p) =>
-                p.name.toLowerCase().includes(q) ||
-                (p.code && p.code.toLowerCase().includes(q)) ||
-                (p.barcode && p.barcode.toLowerCase().includes(q)),
-            );
-          }
-          const total = filtered.length;
-          const start = (page - 1) * PAGE_SIZE;
-          setProducts(filtered.slice(start, start + PAGE_SIZE));
-          setPagination({
-            page,
-            total_pages: Math.ceil(total / PAGE_SIZE) || 1,
-            total,
-          });
-        })
-        .catch(() => setError("Failed to load cached offline products."))
-        .finally(() => setLoading(false));
-      return () => controller.abort();
-    }
-
     getPosProducts(
       { search: query, category_id: category, page, limit: PAGE_SIZE },
       controller.signal,
@@ -365,9 +340,6 @@ function PosPage() {
       .then((data) => {
         setProducts(data.products);
         setPagination(data.pagination);
-        if (Array.isArray(data.products) && data.products.length > 0) {
-          cacheProducts(data.products, false).catch(() => undefined);
-        }
       })
       .catch((failure) => {
         if (failure.code === "ERR_CANCELED") return;
@@ -637,8 +609,8 @@ function PosPage() {
     )
       return notify("Enter a valid discount.", "error");
 
-    // OFFLINE EMERGENCY SALE PROCESSING
-    if (!isOnline || isEmergencyMode) {
+    const isOfflineSale = false;
+    if (isOfflineSale) {
       if (
         payment.payment_method !== "cash" &&
         payment.payment_method !== "khata"
@@ -665,14 +637,24 @@ function PosPage() {
         const now = new Date().toISOString();
         const changeRet = Math.max(0, amountRec - totals.grandTotal);
 
+        const customerName = selectedCustomer
+          ? selectedCustomer.name
+          : payment.customer_name.trim();
+        const customerPhone = selectedCustomer
+          ? selectedCustomer.phone
+          : payment.customer_phone.trim();
+        const customerId = selectedCustomer ? selectedCustomer.id : null;
+        const isKhata = payment.payment_method === "khata";
+
         const offlineRecord = {
           offline_sale_id: offlineSaleId,
           request_token: requestToken,
           device_id: deviceConfig?.device_id || "local_terminal",
           cashier_id: offlineUser?.id || 1,
           cashier_name: offlineUser?.name || "Offline Admin",
-          customer_name: payment.customer_name.trim() || null,
-          customer_phone: payment.customer_phone.trim() || null,
+          customer_id: customerId,
+          customer_name: customerName || null,
+          customer_phone: customerPhone || null,
           created_at: now,
           items: cart.items.map((item) => ({
             product_id: item.id,
@@ -694,10 +676,10 @@ function PosPage() {
           discount_amount: totals.discountAmount.toFixed(2),
           tax_amount: totals.taxAmount.toFixed(2),
           grand_total: totals.grandTotal.toFixed(2),
-          amount_received: amountRec.toFixed(2),
+          amount_received: isKhata ? "0.00" : amountRec.toFixed(2),
           change_returned: changeRet.toFixed(2),
-          payment_method: "cash",
-          payment_status: "paid",
+          payment_method: isKhata ? "khata" : "cash",
+          payment_status: isKhata ? "pending" : "paid",
           status: "completed",
           notes: payment.note.trim()
             ? `[Offline Sale] ${payment.note.trim()}`
@@ -714,28 +696,33 @@ function PosPage() {
         // Deduct cached stock in IndexedDB
         await deductCachedStock(cart.items);
 
-        // Prepare receipt data
+        // Prepare receipt data in proper shape expected by ReceiptPreview
         const offlineReceipt = {
-          id: offlineSaleId,
-          invoice_number: offlineRecord.invoice_number,
-          created_at: now,
-          cashier_name: offlineRecord.cashier_name,
-          customer_name: offlineRecord.customer_name || "Walk-in Customer",
-          customer_phone: offlineRecord.customer_phone || "",
-          subtotal: totals.subtotal.toFixed(2),
-          discount_type: discountType,
-          discount_amount: totals.discountAmount.toFixed(2),
-          tax_amount: totals.taxAmount.toFixed(2),
-          grand_total: totals.grandTotal.toFixed(2),
-          amount_received: amountRec.toFixed(2),
-          change_returned: changeRet.toFixed(2),
-          payment_method: "cash",
-          payment_status: "paid",
-          status: "completed",
-          notes: offlineRecord.notes,
+          sale: {
+            id: offlineSaleId,
+            invoice_number: offlineRecord.invoice_number,
+            created_at: now,
+            cashier_name: offlineRecord.cashier_name,
+            customer_id: customerId,
+            customer_name: offlineRecord.customer_name || "Walk-in Customer",
+            customer_phone: offlineRecord.customer_phone || "",
+            subtotal: offlineRecord.subtotal,
+            discount_type: offlineRecord.discount_type,
+            discount_amount: offlineRecord.discount_amount,
+            tax_amount: offlineRecord.tax_amount,
+            grand_total: offlineRecord.grand_total,
+            amount_received: offlineRecord.amount_received,
+            change_returned: offlineRecord.change_returned,
+            payment_method: offlineRecord.payment_method,
+            payment_status: offlineRecord.payment_status,
+            status: "completed",
+            notes: offlineRecord.notes,
+            is_offline: true,
+            offline_watermark: "Offline Sale — Pending Sync",
+          },
+          items: offlineRecord.items,
           is_offline: true,
           offline_watermark: "Offline Sale — Pending Sync",
-          items: offlineRecord.items,
         };
 
         setSavedSale(offlineRecord);

@@ -66,8 +66,11 @@ apiClient.interceptors.response.use(
 
     // Handle 401 Unauthorized globally
     if (status === 401 && !url.includes("/auth/login") && !url.includes("/auth/me") && !url.includes("/auth/logout")) {
-      alertManager.warning("Your session has expired. Please log in again.", { preventDuplicate: true, id: 'session-expired' });
-      window.dispatchEvent(new Event("mh-session-expired"));
+      const isOnLoginPage = typeof window !== "undefined" && window.location.pathname.includes("/login");
+      if (!error.config?.silent && !isOnLoginPage) {
+        alertManager.warning("Your session has expired. Please log in again.", { preventDuplicate: true, id: 'session-expired' });
+        window.dispatchEvent(new Event("mh-session-expired"));
+      }
     }
     
     // Handle 403 Forbidden globally

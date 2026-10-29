@@ -20,6 +20,7 @@ import SalesPagination from "../components/sales/SalesPagination";
 import SalesSummaryCards from "../components/sales/SalesSummaryCards";
 import SalesTable from "../components/sales/SalesTable";
 import useAlert from "../hooks/useAlert";
+import useOffline from "../hooks/useOffline";
 import normalizeApiError from "../utils/normalizeApiError";
 import { getOfflineSales } from "../utils/idb";
 
@@ -57,6 +58,7 @@ function paramsOf(filters) {
 
 function SalesPage() {
   const alert = useAlert();
+  const { isOnline, isEmergencyMode } = useOffline();
   const [filters, setFilters] = useState(defaults);
   const [search, setSearch] = useState("");
   const [sales, setSales] = useState([]);
@@ -101,7 +103,7 @@ function SalesPage() {
       setPageError(null);
 
       // OFFLINE SALES FALLBACK
-      if (!navigator.onLine) {
+      if (!navigator.onLine || !isOnline || isEmergencyMode) {
         try {
           const offlineList = await getOfflineSales(filters.status || 'all');
           if (!active) return;
@@ -200,26 +202,30 @@ function SalesPage() {
     if (sale.is_offline || sale.rawRecord) {
       const rec = sale.rawRecord || sale;
       setReceipt({
-        id: rec.offline_sale_id || rec.id,
-        invoice_number: rec.invoice_number,
-        created_at: rec.created_at,
-        cashier_name: rec.cashier_name,
-        customer_name: rec.customer_name || 'Walk-in Customer',
-        customer_phone: rec.customer_phone || '',
-        subtotal: rec.subtotal,
-        discount_type: rec.discount_type,
-        discount_amount: rec.discount_amount,
-        tax_amount: rec.tax_amount,
-        grand_total: rec.grand_total,
-        amount_received: rec.amount_received,
-        change_returned: rec.change_returned,
-        payment_method: 'cash',
-        payment_status: 'paid',
-        status: 'completed',
-        notes: rec.notes,
+        sale: {
+          id: rec.offline_sale_id || rec.id,
+          invoice_number: rec.invoice_number,
+          created_at: rec.created_at,
+          cashier_name: rec.cashier_name,
+          customer_name: rec.customer_name || 'Walk-in Customer',
+          customer_phone: rec.customer_phone || '',
+          subtotal: rec.subtotal,
+          discount_type: rec.discount_type,
+          discount_amount: rec.discount_amount,
+          tax_amount: rec.tax_amount,
+          grand_total: rec.grand_total,
+          amount_received: rec.amount_received,
+          change_returned: rec.change_returned,
+          payment_method: rec.payment_method || 'cash',
+          payment_status: rec.payment_status || 'paid',
+          status: 'completed',
+          notes: rec.notes,
+          is_offline: true,
+          offline_watermark: 'Offline Sale — Pending Sync',
+        },
+        items: rec.items || [],
         is_offline: true,
         offline_watermark: 'Offline Sale — Pending Sync',
-        items: rec.items,
       });
       setReceiptLoading(false);
       return;

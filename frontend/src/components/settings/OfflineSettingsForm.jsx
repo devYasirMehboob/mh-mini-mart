@@ -7,7 +7,7 @@ import useAlert from "../../hooks/useAlert";
 export default function OfflineSettingsForm() {
   const { user } = useAuth();
   const alert = useAlert();
-  const { deviceConfig, enableEmergencyMode, refreshProductCache, isSyncing, syncStatusMessage } = useOffline();
+  const { deviceConfig, enableEmergencyMode, refreshProductCache, isSyncing, syncStatusMessage, lastCacheTime } = useOffline();
 
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
@@ -50,7 +50,7 @@ export default function OfflineSettingsForm() {
     try {
       const res = await refreshProductCache();
       if (res.success) {
-        alert.success(`Successfully cached ${res.count} products for offline scan!`);
+        alert.success(`Successfully cached ${res.count || 0} products, categories & customers for offline mode!`);
       } else {
         alert.error("Product cache failed: " + (res.error || res.message));
       }
@@ -197,28 +197,41 @@ export default function OfflineSettingsForm() {
         </div>
       </form>
 
-      {/* Manual Product Cache Management */}
+      {/* IndexedDB Product, Category & Customer Cache */}
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <HardDrive className="h-5 w-5 text-blue-600" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 shrink-0">
+              <HardDrive className="h-5 w-5" />
+            </div>
             <div>
-              <h3 className="text-base font-extrabold text-slate-900">
-                IndexedDB Product Catalog Cache
-              </h3>
-              <p className="text-xs text-slate-500">
-                Keep local offline barcode scanner data up to date with live products.
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base font-extrabold text-slate-900">
+                  IndexedDB Offline Catalog & Khata Cache
+                </h3>
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Auto-Sync Active
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-500 leading-relaxed max-w-xl">
+                Products, categories, and customer profiles are automatically cached in the background on every page reload and every 3 minutes. Admin does not need to click this button manually — you can use it anytime for an immediate force refresh.
               </p>
+              {lastCacheTime && (
+                <p className="mt-2 text-[11px] font-medium text-slate-400">
+                  Last auto-cached: <span className="font-semibold text-slate-700">{new Date(lastCacheTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span> ({new Date(lastCacheTime).toLocaleDateString()})
+                </p>
+              )}
             </div>
           </div>
 
           <button
             onClick={handleCacheProductsNow}
             disabled={isCaching}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 transition disabled:opacity-50"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 transition disabled:opacity-50"
           >
             <RefreshCw className={`h-4 w-4 text-blue-600 ${isCaching ? "animate-spin" : ""}`} />
-            {isCaching ? "Caching..." : "Sync Product Cache Now"}
+            {isCaching ? "Caching..." : "Force Sync Now"}
           </button>
         </div>
       </div>

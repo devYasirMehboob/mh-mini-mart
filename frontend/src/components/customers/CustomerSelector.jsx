@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { searchCustomers } from "../../api/customersApi";
+import { searchCachedCustomers } from "../../utils/idb";
 import normalizeApiError from "../../utils/normalizeApiError";
 import Icon from "../Icon";
 
@@ -23,8 +24,18 @@ function CustomerSelector({ value, onChange, disabled = false, placeholder = "Se
     if (!q || q.trim().length < 1) { setResults([]); return; }
     setLoading(true);
     try {
-      const data = await searchCustomers(q.trim(), 10);
-      setResults(data.data?.customers || []);
+      if (!navigator.onLine) {
+        const cached = await searchCachedCustomers(q.trim(), 10);
+        setResults(cached);
+      } else {
+        try {
+          const data = await searchCustomers(q.trim(), 10);
+          setResults(data.data?.customers || []);
+        } catch (apiErr) {
+          const cached = await searchCachedCustomers(q.trim(), 10);
+          setResults(cached);
+        }
+      }
     } catch (e) {
       setResults([]);
     } finally {
