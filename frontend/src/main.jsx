@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
+import { BrowserRouter, HashRouter } from "react-router-dom";
 import "@fontsource-variable/manrope";
 import "./styles/app.css";
 import App from "./App";
@@ -17,17 +17,24 @@ window.addEventListener('unhandledrejection', (event) => {
   logger.promise("Unhandled promise rejection:", event.reason);
 });
 
+// In Electron or file:// protocol, use HashRouter for rock-solid local routing
+const isElectronOrFile =
+  typeof window !== "undefined" &&
+  (window.electronAPI?.isElectron || window.location.protocol === "file:");
+
+const Router = isElectronOrFile ? HashRouter : BrowserRouter;
+
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <ErrorBoundary>
       <AppConfigProvider>
-        <BrowserRouter>
+        <Router>
           <SettingsProvider>
             <AuthProvider>
               <App />
             </AuthProvider>
           </SettingsProvider>
-        </BrowserRouter>
+        </Router>
       </AppConfigProvider>
     </ErrorBoundary>
   </StrictMode>,
