@@ -223,6 +223,23 @@ export default function BarcodeLabelsPage() {
         );
       }
 
+      // If running in Desktop App, direct silent print
+      if (typeof window !== "undefined" && window.electronAPI?.isElectron) {
+        const printerName =
+          settings?.printer?.label_printer_name ||
+          settings?.printer?.printer_name;
+        const printHtml = generatePrintHtml(generatedLabels, labelsPerRow);
+        try {
+          const printRes = await window.electronAPI.printReceipt(printHtml, printerName);
+          if (printRes?.success) {
+            alert.success("Labels sent to printer successfully.");
+            return;
+          }
+        } catch (e) {
+          console.warn("Direct electron label print failed, falling back to browser print", e);
+        }
+      }
+
       const printingMethod = settings?.printer?.printing_method || "browser";
 
       if (printingMethod === "qz") {

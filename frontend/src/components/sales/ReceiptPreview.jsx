@@ -27,10 +27,46 @@ function ReceiptPreview({
   const alert = useAlert();
   const options = receipt?.options || settings?.receipt || {};
   const shop = receipt?.shop || {};
-  const logo = settings?.shop?.logo_url;
   const [isPrinting, setIsPrinting] = useState(false);
 
   const handlePrint = async () => {
+    // If running in Desktop App, direct silent print
+    if (typeof window !== "undefined" && window.electronAPI?.isElectron) {
+      const printerName = settings?.printer?.printer_name;
+      try {
+        setIsPrinting(true);
+        const html = document.getElementById("printable-receipt").outerHTML;
+        const fullHtml = `<html><head><style>
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { font-family: "Jameel Noori Nastaleeq", "Noto Nastaliq Urdu", "Nafees", "Urdu Typesetting", Tahoma, Arial, sans-serif; background: white; color: black; font-size: 13px; }
+          .w-full { width: 100%; } .mx-auto { margin-left: auto; margin-right: auto; }
+          .text-center { text-align: center; } .text-right { text-align: right; } .text-left { text-align: left; }
+          .font-bold { font-weight: bold; } .font-extrabold { font-weight: 800; } .font-black { font-weight: 900; }
+          .my-3 { margin-top: 0.75rem; margin-bottom: 0.75rem; } .mb-2 { margin-bottom: 0.5rem; } .mt-2 { margin-top: 0.5rem; }
+          .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; } .pb-1 { padding-bottom: 0.25rem; } .pr-2 { padding-right: 0.5rem; }
+          .border-t { border-top-width: 1px; } .border-dashed { border-style: dashed; } .border-solid { border-style: solid; } .border-black { border-color: black; }
+          .border-2 { border-width: 2px; } .uppercase { text-transform: uppercase; } .text-base { font-size: 1rem; }
+          .flex { display: flex; } .justify-between { justify-content: space-between; } .justify-end { justify-content: flex-end; }
+          .block { display: block; } .align-top { vertical-align: top; } .capitalize { text-transform: capitalize; }
+          .space-y-1 > * + * { margin-top: 0.25rem; } .space-y-2 > * + * { margin-top: 0.5rem; }
+          .max-h-14 { max-height: 3.5rem; } .max-w-24 { max-width: 6rem; } .object-contain { object-fit: contain; }
+          .bg-white { background-color: white; } .p-4 { padding: 1rem; } .text-lg { font-size: 1.125rem; } .text-sm { font-size: 0.875rem; }
+          .text-xs { font-size: 0.75rem; } .tracking-widest { letter-spacing: 0.1em; } .mt-1 { margin-top: 0.25rem; } .mt-4 { margin-top: 1rem; } .mt-3 { margin-top: 0.75rem; } .flex-col { flex-direction: column; } .items-center { align-items: center; } .justify-center { justify-content: center; } .h-10 { height: 2.5rem; } .max-w-\\[200px\\] { max-width: 200px; }
+          .barcode-text { font-family: monospace; }
+        </style></head><body>${html}</body></html>`;
+
+        const printRes = await window.electronAPI.printReceipt(fullHtml, printerName);
+        if (printRes?.success) {
+          alert.success("Receipt printed successfully.");
+          return;
+        }
+      } catch (e) {
+        console.warn("Direct electron print failed, falling back to browser print", e);
+      } finally {
+        setIsPrinting(false);
+      }
+    }
+
     const printingMethod = settings?.printer?.printing_method || "browser";
 
     if (printingMethod === "qz") {
