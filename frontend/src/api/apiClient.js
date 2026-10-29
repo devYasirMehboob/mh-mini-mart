@@ -74,8 +74,10 @@ apiClient.interceptors.response.use(
     }
     
     // Handle 403 Forbidden globally
-    if (status === 403) {
-      alertManager.error(`You do not have permission to perform this action.\nReference: ${requestId}`, { preventDuplicate: true, id: `forbidden-error-${requestId}` });
+    if (status === 403 && !url.includes("/auth/login")) {
+      const serverMsg = error.response?.data?.message;
+      const message = serverMsg ? `${serverMsg}\nReference: ${requestId}` : `You do not have permission to perform this action.\nReference: ${requestId}`;
+      alertManager.error(message, { preventDuplicate: true, id: `forbidden-error-${requestId}` });
     }
 
     // Handle 500/503 Server Error globally

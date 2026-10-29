@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, session } = require('electron');
 const path = require('path');
 const { initDatabase, searchProducts, recordSale } = require('./db.cjs');
 const { checkServerOnline, pushSalesToServer, pullProductsFromServer } = require('./sync.cjs');
@@ -66,6 +66,31 @@ function createWindow() {
 
 // ----------------- App Lifecycle -----------------
 app.whenReady().then(() => {
+  // Ensure Electron requests to API send valid Origin/Referer and retain cookies
+  session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+    if (details.url.includes('store.mhminimart.com')) {
+      details.requestHeaders['Origin'] = 'https://store.mhminimart.com';
+      details.requestHeaders['Referer'] = 'https://store.mhminimart.com/';
+    }
+    callback({ requestHeaders: details.requestHeaders });
+  });
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const responseHeaders = { ...details.responseHeaders };
+    const cookieKey = Object.keys(responseHeaders).find(k => k.toLowerCase() === 'set-cookie');
+    if (cookieKey && Array.isArray(responseHeaders[cookieKey])) {
+      responseHeaders[cookieKey] = responseHeaders[cookieKey].map((cookie) => {
+        let c = cookie.replace(/;\s*samesite=lax/gi, '; SameSite=None; Secure');
+        c = c.replace(/;\s*samesite=strict/gi, '; SameSite=None; Secure');
+        if (!/samesite=/i.test(c)) {
+          c += '; SameSite=None; Secure';
+        }
+        return c;
+      });
+    }
+    callback({ responseHeaders });
+  });
+
   try {
     initDatabase();
   } catch (err) {
